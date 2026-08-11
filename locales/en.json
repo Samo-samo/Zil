@@ -1,14 +1,21 @@
 {
   "home": {
     "title": "Zil",
-    "nothing": "No videos yet."
+    "nothing": "No video yet."
   },
-
+  
   "settings": {
-    "title": "Settings"
+    "title": "Settings",
+    "langs": {
+      "label": "Language",
+      "en": "English",
+      "tr": "Turkish"
+    }
   },
 
   "addingPage": {
-    "title": "Channel Adding Page"
+    "title": "Channel Adding Page",
+    "channelName": "Channel name:",
+    "channelPlaceholder": "Enter the channel ID..."
   }
 }

@@ -1,6 +1,5 @@
 import { lang, getLang } from './modules/localizator.js';
 
-// Popup açıldığında çalışır
 lang();
 
 const homepage = document.getElementById('homepage');
