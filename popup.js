@@ -1,6 +1,8 @@
 import { lang, getLang } from './modules/localizator.js';
 
-lang();
+let selectedLang = "";
+
+lang(selectedLang);
 
 const homepage = document.getElementById('homepage');
 const settingsPage = document.getElementById('settingsPage');
@@ -28,3 +30,8 @@ document.getElementById('backBtnAdd').addEventListener('click', () => {
     addingPage.style.display = 'none';
     homepage.style.display = 'block';
 });
+
+document.getElementById('lang').addEventListener('change', function(event) {
+    const selectedLang = event.target.value;
+    lang(selectedLang);
+})
