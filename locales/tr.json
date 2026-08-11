@@ -1,0 +1,21 @@
+{
+  "home": {
+    "title": "Zil",
+    "nothing": "Henüz hiç video yok."
+  },
+  
+  "settings": {
+    "title": "Ayarlar",
+    "langs": {
+      "label": "Dil",
+      "en": "İngilizce",
+      "tr": "Türkçe"
+    }
+  },
+
+  "addingPage": {
+    "title": "Kanal Ekleme Sayfası",
+    "channelName": "Kanal adı:",
+    "channelPlaceholder": "Kanal ID'sini girin"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "Zil",
+  "version": "1.0",
+  "description": "YouTube Notification Extension",
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  }
+}

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+    <div id="homepage">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h2 data-i18n="home.title" style="flex-grow: 5;">Zil...</h2>
+            <button id="addingPageBtn"style="flex-grow: 0;">➕</button>
+            <button id="settingsBtn"style="flex-grow: 0;">⚙️</button>
+        </div>
+
+        <div data-i18n="home.nothing"></div>
+    </div>
+
+    <div id="settingsPage" style="display: none;">
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <button id="backBtnSettings">⬅️</button>
+            <h2 data-i18n="settings.title"></h2>
+        </div>
+
+        <label for="lang" data-i18n="settings.langs.label"></label><br>
+        <select name="lang" id="lang">
+            <option value="en" data-i18n="settings.langs.en"></option>
+            <option value="tr" data-i18n="settings.langs.tr"></option>
+        </select>
+
+        <details>
+            <summary>Advanced</summary>
+            <div class="content">
+
+            </div>
+        </details>
+    </div>
+
+    <div id="addingPage" style="display: none;">
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <button id="backBtnAdd">⬅️</button>
+            <h2 data-i18n="addingPage.title"></h2>
+        </div>
+
+        <label for="channelInput" data-i18n="addingPage.channelName"></label><br>
+        <input id="channelInput" data-i18n-placeholder="addingPage.channelPlaceholder"></input>
+
+        <details>
+            <summary>Advanced</summary>
+            <div class="content">
+                
+            </div>
+        </details>
+
+    </div>
+
+  <script src="popup.js" type="module"></script>
+</body>
+</html>
