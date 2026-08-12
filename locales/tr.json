@@ -10,7 +10,9 @@
       "label": "Dil",
       "en": "İngilizce",
       "tr": "Türkçe"
-    }
+    },
+    "advanced": "Gelişmiş",
+    "darkMode": "Karanlık Mod"
   },
 
   "addingPage": {

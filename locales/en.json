@@ -10,12 +10,14 @@
       "label": "Language",
       "en": "English",
       "tr": "Turkish"
-    }
+    },
+    "advanced": "Advanced",
+    "darkMode": "Dark Mode"
   },
 
   "addingPage": {
     "title": "Channel Adding Page",
     "channelName": "Channel name:",
-    "channelPlaceholder": "Enter the channel ID..."
+    "channelPlaceholder": "Enter a channel ID..."
   }
 }

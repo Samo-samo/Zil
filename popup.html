@@ -1,57 +1,91 @@
 <!DOCTYPE html>
-<html lang="tr">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
+    <!-- HOME PAGE -->
     <div id="homepage">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h2 data-i18n="home.title" style="flex-grow: 5;">Zil...</h2>
-            <button id="addingPageBtn"style="flex-grow: 0;">➕</button>
-            <button id="settingsBtn"style="flex-grow: 0;">⚙️</button>
+        <div class="flex header-area">
+            <h2 data-i18n="home.title" class="grow">Zil...</h2>
+            <button id="addingPageBtn" class="icon-btn" title="Add">
+                <svg xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            </button>
+            <button id="settingsBtn" class="icon-btn" title="Settings">
+                <svg xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            </button>
         </div>
 
-        <div data-i18n="home.nothing"></div>
+        <div class="empty-state" data-i18n="home.nothing">
+            No items found.
+        </div>
     </div>
 
+    <!-- SETTINGS PAGE -->
     <div id="settingsPage" style="display: none;">
-        <div style="display: flex; gap: 10px; align-items: center;">
-            <button id="backBtnSettings">⬅️</button>
-            <h2 data-i18n="settings.title"></h2>
+        <div class="flex header-area" style="justify-content: flex-start;">
+            <button id="backBtnSettings" class="icon-btn">
+                <svg xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+            </button>
+            <h2 data-i18n="settings.title">Settings</h2>
         </div>
 
-        <label for="lang" data-i18n="settings.langs.label"></label><br>
-        <select name="lang" id="lang">
-            <option value="en" data-i18n="settings.langs.en"></option>
-            <option value="tr" data-i18n="settings.langs.tr"></option>
-        </select>
+        <div class="flex border">
+            <label for="lang" data-i18n="settings.langs.label">Language</label>
+            <!-- Select Wrapper Eklendi -->
+            <div class="select-wrapper">
+                <select name="lang" id="lang">
+                    <option value="en" data-i18n="settings.langs.en">English</option>
+                    <option value="tr" data-i18n="settings.langs.tr">Türkçe</option>
+                </select>
+                <!-- Select Aşağı Ok İkonu -->
+                <svg class="select-arrow" xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </div>
+        </div>
+
+        <div class="flex border">
+            <label for="darkMode" data-i18n="settings.darkMode">Dark Mode</label>
+            <input type="checkbox" name="darkMode" id="darkMode" class="check">
+        </div>
 
         <details>
-            <summary>Advanced</summary>
+            <summary>
+                <span data-i18n="settings.advanced">Advanced Settings</span>
+                <!-- Details Yan Ok İkonu -->
+                <svg class="details-arrow" xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </summary>
             <div class="content">
-
             </div>
         </details>
     </div>
 
+    <!-- ADDING PAGE -->
     <div id="addingPage" style="display: none;">
-        <div style="display: flex; gap: 10px; align-items: center;">
-            <button id="backBtnAdd">⬅️</button>
-            <h2 data-i18n="addingPage.title"></h2>
+        <div class="flex header-area" style="justify-content: flex-start;">
+            <button id="backBtnAdd" class="icon-btn">
+                <svg xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+            </button>
+            <h2 data-i18n="addingPage.title">Add New Channel</h2>
         </div>
 
-        <label for="channelInput" data-i18n="addingPage.channelName"></label><br>
-        <input id="channelInput" data-i18n-placeholder="addingPage.channelPlaceholder"></input>
+        <div class="form-group">
+            <label for="channelInput" data-i18n="addingPage.channelName">Channel Name / URL</label>
+            <input type="text" id="channelInput" data-i18n-placeholder="addingPage.channelPlaceholder" placeholder="e.g. YouTube Channel">
+        </div>
+
+        <button class="btn" data-i18n="addingPage.submitBtn">Save & Start</button>
 
         <details>
-            <summary>Advanced</summary>
+            <summary>
+                <span data-i18n="settings.advanced">Advanced Options</span>
+                <svg class="details-arrow" xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </summary>
             <div class="content">
-                
             </div>
         </details>
-
     </div>
 
   <script src="popup.js" type="module"></script>
