@@ -35,13 +35,11 @@
 
         <div class="flex border">
             <label for="lang" data-i18n="settings.langs.label">Language</label>
-            <!-- Select Wrapper Eklendi -->
             <div class="select-wrapper">
                 <select name="lang" id="lang">
                     <option value="en" data-i18n="settings.langs.en">English</option>
                     <option value="tr" data-i18n="settings.langs.tr">Türkçe</option>
                 </select>
-                <!-- Select Aşağı Ok İkonu -->
                 <svg class="select-arrow" xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
             </div>
         </div>
@@ -54,7 +52,6 @@
         <details>
             <summary>
                 <span data-i18n="settings.advanced">Advanced Settings</span>
-                <!-- Details Yan Ok İkonu -->
                 <svg class="details-arrow" xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
             </summary>
             <div class="content">
@@ -76,7 +73,7 @@
             <input type="text" id="channelInput" data-i18n-placeholder="addingPage.channelPlaceholder" placeholder="e.g. YouTube Channel">
         </div>
 
-        <button class="btn" data-i18n="addingPage.submitBtn">Save & Start</button>
+        <button id="saveChannelBtn" class="btn" data-i18n="addingPage.submitBtn">Save & Start</button>
 
         <details>
             <summary>

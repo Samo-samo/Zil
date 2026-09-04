@@ -1,4 +1,4 @@
-import { lang, getLang } from './modules/localizator.js';
+import { lang } from './modules/localizator.js';
 
 let selectedLang = "";
 
@@ -36,23 +36,35 @@ document.getElementById('backBtnAdd').addEventListener('click', () => {
 document.getElementById('lang').addEventListener('change', function(event) {
     const selectedLang = event.target.value;
     lang(selectedLang);
-})
+});
 
 const darkModeToggle = document.getElementById('darkMode');
 
-// Eğer Chrome Extension mimarisindeyse localStorage yerine chrome.storage.local da kullanılabilir
-const currentTheme = localStorage.getItem('theme');
-if (currentTheme === 'dark') {
+const storageResult = await chrome.storage.local.get(['theme']);
+if (storageResult && storageResult.theme === 'dark') {
     document.body.classList.add('dark');
-    darkModeToggle.checked = true;
+    if (darkModeToggle) darkModeToggle.checked = true;
 }
 
-darkModeToggle.addEventListener('change', () => {
+darkModeToggle.addEventListener('change', async () => {
     if (darkModeToggle.checked) {
         document.body.classList.add('dark');
-        localStorage.setItem('theme', 'dark');
+        await chrome.storage.local.set({ theme: 'dark' });
     } else {
         document.body.classList.remove('dark');
-        localStorage.setItem('theme', 'light');
+        await chrome.storage.local.set({ theme: 'light' });
     }
 });
+
+document.getElementById("saveChannelBtn").addEventListener("click", async () => {
+    const channelInput = document.getElementById("channelInput");
+    const newChannelID = channelInput ? channelInput.value.trim() : "";
+    if (!newChannelID) {
+        return;
+    }
+    const result = await chrome.storage.local.get(['channels']);
+    const channels = result.channels || [];
+    channels.push({ id: newChannelID, name: "Yükleniyor...", lastVideoId: "" });
+    await chrome.storage.local.set({ channels });
+    switchPage('homepage');
+})

@@ -18,6 +18,7 @@
   "addingPage": {
     "title": "Kanal Ekleme Sayfası",
     "channelName": "Kanal adı:",
-    "channelPlaceholder": "Kanal ID'sini girin"
+    "channelPlaceholder": "Kanal ID'sini girin",
+    "submitBtn": "Kaydet & Başla"
   }
 }

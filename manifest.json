@@ -3,6 +3,14 @@
   "name": "Zil",
   "version": "1.0",
   "description": "YouTube Notification Extension",
+  "permissions": [
+    "storage",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://youtube.com/*",
+    "https://www.youtube.com/*"
+    ],
   "background": {
     "service_worker": "background.js",
     "type": "module"

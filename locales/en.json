@@ -18,6 +18,7 @@
   "addingPage": {
     "title": "Channel Adding Page",
     "channelName": "Channel name:",
-    "channelPlaceholder": "Enter a channel ID..."
+    "channelPlaceholder": "Enter a channel ID...",
+    "submitBtn": "Save & Start"
   }
 }

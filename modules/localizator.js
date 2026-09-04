@@ -5,13 +5,13 @@ export async function lang(selectedLang) {
 
     if (selectedLang && selectedLang !== "") {
         targetLang = selectedLang;
-        localStorage.setItem('user_selected_lang', selectedLang);
+        await chrome.storage.local.set({ user_selected_lang: selectedLang });
     } else {
-        const savedLang = localStorage.getItem('user_selected_lang');
-        if (savedLang) {
-            targetLang = savedLang;
+        const result = await chrome.storage.local.get(['user_selected_lang']);
+        if (result && result.user_selected_lang) {
+            targetLang = result.user_selected_lang;
         } else {
-            const userLangLong = navigator.language || navigator.userLanguage;
+            const userLangLong = typeof navigator !== 'undefined' ? (navigator.language || navigator.userLanguage) : null;
             targetLang = userLangLong ? userLangLong.split('-')[0] : FALLBACK_LANG;
         }
     }
@@ -22,17 +22,25 @@ export async function lang(selectedLang) {
             response = await fetch(`./locales/${FALLBACK_LANG}.json`);
         }
         const strings = await response.json();
-        translateUI(strings);
+        
+        if (typeof document !== 'undefined') {
+            translateUI(strings);
+        }
+        
+        return strings;
     } catch (err) {
         console.error("Language installation error:", err);
+        return {};
     }
 }
 
-export function getLang() {
-    const savedLang = localStorage.getItem('user_selected_lang');
-    if (savedLang) return savedLang;
+export async function getLang() {
+    const result = await chrome.storage.local.get(['user_selected_lang']);
+    if (result && result.user_selected_lang) {
+        return result.user_selected_lang;
+    }
 
-    const userLangLong = navigator.language || navigator.userLanguage;
+    const userLangLong = typeof navigator !== 'undefined' ? (navigator.language || navigator.userLanguage) : null;
     return userLangLong ? userLangLong.split('-')[0] : FALLBACK_LANG;
 }
 
@@ -43,6 +51,8 @@ function getValueByPath(obj, path) {
 }
 
 function translateUI(strings) {
+    if (typeof document === 'undefined') return;
+
     document.querySelectorAll('[data-i18n]').forEach(element => {
         const path = element.getAttribute('data-i18n');
         const value = getValueByPath(strings, path);
