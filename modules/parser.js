@@ -18,6 +18,12 @@ export function isChannelId(value) {
   return CHANNEL_ID_RE.test((value || '').trim());
 }
 
+// Legacy corruption guard: an old buggy version stored the NUMBER returned by
+// Array.push() under the 'channels' key. Anything non-array heals to [].
+export function normalizeChannels(stored) {
+  return Array.isArray(stored) ? stored : [];
+}
+
 export function feedUrl(channelId) {
   return `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`;
 }

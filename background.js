@@ -1,4 +1,4 @@
-import { fetchChannelFeed } from './modules/parser.js';
+import { fetchChannelFeed, normalizeChannels } from './modules/parser.js';
 
 const ALARM_NAME = 'checkYouTubeRSS';
 const BADGE_COLOR = '#dc2626';
@@ -6,6 +6,17 @@ const NOTIF_ICON = 'icons/bell-128.png';
 
 export const DEFAULT_SETTINGS = { checkIntervalMin: 15, notifyMode: 'all' };
 // notifyMode: 'all' (notification + badge) | 'badge' (badge only) | 'off'
+
+// Single choke point for channel reads: normalizes legacy corruption
+// (non-array 'channels' value) and heals storage on the spot.
+async function getChannels() {
+  const { channels: stored } = await chrome.storage.local.get(['channels']);
+  const channels = normalizeChannels(stored);
+  if (channels !== stored) {
+    await chrome.storage.local.set({ channels });
+  }
+  return channels;
+}
 
 async function getSettings() {
   const { settings = {} } = await chrome.storage.local.get(['settings']);
@@ -77,7 +88,7 @@ async function updateBadge() {
       await chrome.action.setBadgeText({ text: '' });
       return;
     }
-    const { channels = [] } = await chrome.storage.local.get(['channels']);
+    const channels = await getChannels();
     const total = channels.reduce((n, c) => n + (c.unread || 0), 0);
     await chrome.action.setBadgeBackgroundColor({ color: BADGE_COLOR });
     await chrome.action.setBadgeText({ text: total > 0 ? String(total) : '' });
@@ -101,7 +112,7 @@ async function notifyNewVideo(channel, video) {
 
 async function checkNewVideos() {
   const { notifyMode } = await getSettings();
-  const { channels = [] } = await chrome.storage.local.get(['channels']);
+  const channels = await getChannels();
   if (!channels.length) {
     await updateBadge();
     return { ok: true, checked: 0, newVideos: 0 };

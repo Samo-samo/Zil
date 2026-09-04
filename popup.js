@@ -1,5 +1,5 @@
 import { lang } from './modules/localizator.js';
-import { resolveChannelId, fetchChannelFeed } from './modules/parser.js';
+import { resolveChannelId, fetchChannelFeed, normalizeChannels } from './modules/parser.js';
 
 const DEFAULT_SETTINGS = { checkIntervalMin: 15, notifyMode: 'all' };
 const REFRESH_TIMEOUT_MS = 25000;
@@ -96,9 +96,19 @@ if (notifyModeSelect) notifyModeSelect.addEventListener('change', saveSettings);
 await loadSettings();
 
 async function syncBadge() {
-    const { channels = [] } = await chrome.storage.local.get(['channels']);
+    const channels = await getChannels();
     const total = channels.reduce((n, c) => n + (c.unread || 0), 0);
     await chrome.action.setBadgeText({ text: total > 0 ? String(total) : '' });
+}
+
+// Same choke point as background.js: heals the legacy non-array value.
+async function getChannels() {
+    const { channels: stored } = await chrome.storage.local.get(['channels']);
+    const channels = normalizeChannels(stored);
+    if (channels !== stored) {
+        await chrome.storage.local.set({ channels });
+    }
+    return channels;
 }
 
 // Maps parser error codes to messages. Feed 404 means the channel does not
@@ -133,7 +143,7 @@ document.getElementById('saveChannelBtn').addEventListener('click', async (event
     btn.textContent = t('addingPage.adding', 'Adding…');
     try {
         const channelId = await resolveChannelId(raw);
-        const { channels = [] } = await chrome.storage.local.get(['channels']);
+        const channels = await getChannels();
         if (channels.some((c) => c.id === channelId)) {
             showAddError('exists');
             return;
@@ -188,7 +198,7 @@ document.getElementById('refreshBtn').addEventListener('click', async (event) =>
 async function openVideo(channelId, url) {
     if (!url) return;
     await chrome.tabs.create({ url });
-    const { channels = [] } = await chrome.storage.local.get(['channels']);
+    const channels = await getChannels();
     const next = channels.map((c) => (c.id === channelId ? { ...c, unread: 0 } : c));
     await chrome.storage.local.set({ channels: next });
     await syncBadge();
@@ -196,7 +206,7 @@ async function openVideo(channelId, url) {
 }
 
 async function removeChannel(channelId) {
-    const { channels = [] } = await chrome.storage.local.get(['channels']);
+    const channels = await getChannels();
     await chrome.storage.local.set({ channels: channels.filter((c) => c.id !== channelId) });
     await syncBadge();
     await renderChannels();
@@ -210,7 +220,7 @@ function lastErrorText(code) {
 async function renderChannels() {
     const list = document.getElementById('channelList');
     const empty = document.getElementById('homeEmpty');
-    const { channels = [] } = await chrome.storage.local.get(['channels']);
+    const channels = await getChannels();
     list.textContent = '';
     empty.style.display = channels.length ? 'none' : 'block';
     for (const ch of channels) {
