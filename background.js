@@ -1,10 +1,10 @@
-import { fetchChannelFeed, normalizeChannels } from './modules/parser.js';
+import { fetchChannelFeed, normalizeChannels, isShorts } from './modules/parser.js';
 
 const ALARM_NAME = 'checkYouTubeRSS';
 const BADGE_COLOR = '#dc2626';
 const NOTIF_ICON = 'icons/bell-128.png';
 
-export const DEFAULT_SETTINGS = { checkIntervalMin: 15, notifyMode: 'all' };
+export const DEFAULT_SETTINGS = { checkIntervalMin: 15, notifyMode: 'all', skipShorts: false };
 // notifyMode: 'all' (notification + badge) | 'badge' (badge only) | 'off'
 
 // Single choke point for channel reads: normalizes legacy corruption
@@ -23,6 +23,7 @@ async function getSettings() {
   const merged = { ...DEFAULT_SETTINGS, ...settings };
   if (![15, 30, 60, 120].includes(merged.checkIntervalMin)) merged.checkIntervalMin = 15;
   if (!['all', 'badge', 'off'].includes(merged.notifyMode)) merged.notifyMode = 'all';
+  merged.skipShorts = merged.skipShorts === true;
   return merged;
 }
 
@@ -111,7 +112,7 @@ async function notifyNewVideo(channel, video) {
 }
 
 async function checkNewVideos() {
-  const { notifyMode } = await getSettings();
+  const { notifyMode, skipShorts } = await getSettings();
   const channels = await getChannels();
   if (!channels.length) {
     await updateBadge();
@@ -124,7 +125,12 @@ async function checkNewVideos() {
   for (const ch of channels) {
     try {
       const feed = await fetchChannelFeed(ch.id);
-      const latest = feed.videos[0];
+      const newest = feed.videos[0];
+      // With the Shorts filter on, track the newest non-Shorts video, but
+      // still compare against the unfiltered newest so a fresh Shorts upload
+      // does not re-notify for the video below it on the next run.
+      const pool = skipShorts ? feed.videos.filter((v) => !isShorts(v)) : feed.videos;
+      const latest = pool[0];
       const next = {
         ...ch,
         name: feed.channelTitle || ch.name,
@@ -132,22 +138,32 @@ async function checkNewVideos() {
         lastOk: true,
         lastError: null,
       };
-      if (latest) {
+      if (newest && !ch.lastVideoId) {
+        // First successful read: baseline on the ACTUAL newest (even a Short)
+        // without notifying, so enabling the filter later stays quiet.
+        next.lastVideoId = newest.videoId;
+        const shown = latest || newest;
+        next.lastVideoTitle = shown.title;
+        next.lastPublished = shown.published;
+        next.lastVideoUrl = shown.link;
+        next.lastThumb = shown.thumb || ch.lastThumb || '';
+      } else if (newest && newest.videoId !== ch.lastVideoId && latest && latest.videoId !== ch.lastVideoId) {
+        next.lastVideoId = latest.videoId;
         next.lastVideoTitle = latest.title;
         next.lastPublished = latest.published;
         next.lastVideoUrl = latest.link;
         next.lastThumb = latest.thumb || ch.lastThumb || '';
-        if (!ch.lastVideoId) {
-          // First successful read: baseline without notifying.
-          next.lastVideoId = latest.videoId;
-        } else if (ch.lastVideoId !== latest.videoId) {
-          next.lastVideoId = latest.videoId;
-          next.unread = (ch.unread || 0) + 1;
-          newVideos += 1;
-          if (notifyMode === 'all') {
-            await notifyNewVideo(next, latest);
-          }
+        next.unread = (ch.unread || 0) + 1;
+        newVideos += 1;
+        if (notifyMode === 'all') {
+          await notifyNewVideo(next, latest);
         }
+      } else if (latest) {
+        // Nothing new, but refresh display fields (name/thumb may change).
+        next.lastVideoTitle = latest.title;
+        next.lastPublished = latest.published;
+        next.lastVideoUrl = latest.link;
+        next.lastThumb = latest.thumb || ch.lastThumb || '';
       }
       updated.push(next);
     } catch (err) {

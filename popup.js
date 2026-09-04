@@ -1,7 +1,7 @@
 import { lang } from './modules/localizator.js';
-import { resolveChannelId, fetchChannelFeed, normalizeChannels } from './modules/parser.js';
+import { resolveChannelId, fetchChannelFeed, normalizeChannels, isShorts } from './modules/parser.js';
 
-const DEFAULT_SETTINGS = { checkIntervalMin: 15, notifyMode: 'all' };
+const DEFAULT_SETTINGS = { checkIntervalMin: 15, notifyMode: 'all', skipShorts: false };
 const REFRESH_TIMEOUT_MS = 25000;
 
 let selectedLang = '';
@@ -70,21 +70,24 @@ darkModeToggle.addEventListener('change', async () => {
     }
 });
 
-// ---- Check settings (interval + notify mode) ----
+// ---- Check settings (interval + notify mode + shorts filter) ----
 const checkIntervalSelect = document.getElementById('checkInterval');
 const notifyModeSelect = document.getElementById('notifyMode');
+const skipShortsToggle = document.getElementById('skipShorts');
 
 async function loadSettings() {
     const { settings = {} } = await chrome.storage.local.get(['settings']);
     const merged = { ...DEFAULT_SETTINGS, ...settings };
     if (checkIntervalSelect) checkIntervalSelect.value = String(merged.checkIntervalMin);
     if (notifyModeSelect) notifyModeSelect.value = merged.notifyMode;
+    if (skipShortsToggle) skipShortsToggle.checked = merged.skipShorts === true;
 }
 
 async function saveSettings() {
     const settings = {
         checkIntervalMin: Number(checkIntervalSelect ? checkIntervalSelect.value : 15) || 15,
         notifyMode: notifyModeSelect ? notifyModeSelect.value : 'all',
+        skipShorts: skipShortsToggle ? skipShortsToggle.checked : false,
     };
     await chrome.storage.local.set({ settings });
     // Background rebuilds the alarm via storage.onChanged.
@@ -92,6 +95,7 @@ async function saveSettings() {
 
 if (checkIntervalSelect) checkIntervalSelect.addEventListener('change', saveSettings);
 if (notifyModeSelect) notifyModeSelect.addEventListener('change', saveSettings);
+if (skipShortsToggle) skipShortsToggle.addEventListener('change', saveSettings);
 
 await loadSettings();
 
@@ -226,15 +230,20 @@ document.getElementById('saveChannelBtn').addEventListener('click', async (event
             return;
         }
         const feed = await fetchChannelFeed(channelId);
-        const latest = feed.videos[0];
+        const { settings = {} } = await chrome.storage.local.get(['settings']);
+        const pool = settings.skipShorts === true
+            ? feed.videos.filter((v) => !isShorts(v))
+            : feed.videos;
+        const newest = feed.videos[0];
+        const shown = pool[0] || newest;
         channels.push({
             id: channelId,
             name: feed.channelTitle || channelId,
-            lastVideoId: latest ? latest.videoId : '',
-            lastVideoTitle: latest ? latest.title : '',
-            lastPublished: latest ? latest.published : '',
-            lastVideoUrl: latest ? latest.link : '',
-            lastThumb: latest && latest.thumb ? latest.thumb : '',
+            lastVideoId: newest ? newest.videoId : '',
+            lastVideoTitle: shown ? shown.title : '',
+            lastPublished: shown ? shown.published : '',
+            lastVideoUrl: shown ? shown.link : '',
+            lastThumb: shown && shown.thumb ? shown.thumb : '',
             unread: 0,
             lastCheck: new Date().toISOString(),
             lastOk: true,

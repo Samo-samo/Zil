@@ -28,6 +28,12 @@ export function feedUrl(channelId) {
   return `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`;
 }
 
+// Shorts arrive as normal entries with a /shorts/ link — the href is kept
+// as-is during parsing, so this is the single detection point.
+export function isShorts(video) {
+  return !!video && typeof video.link === 'string' && video.link.includes('/shorts/');
+}
+
 function pick(text, re) {
   const m = text.match(re);
   return m ? m[1] : '';

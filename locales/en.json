@@ -20,6 +20,7 @@
     },
     "advanced": "Advanced",
     "darkMode": "Dark Mode",
+    "shorts": "Skip Shorts",
     "interval": {
       "label": "Check interval",
       "o15": "Every 15 minutes",
