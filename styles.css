@@ -459,6 +459,18 @@ button.btn:disabled {
     cursor: wait;
 }
 
+button.btn.secondary {
+    background: var(--bg-btn);
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+    box-shadow: none;
+}
+
+button.btn.secondary:hover {
+    background: var(--bg-btn-hover);
+    box-shadow: none;
+}
+
 .setting-row {
     padding: 4px 0;
 }

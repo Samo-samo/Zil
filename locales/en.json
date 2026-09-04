@@ -32,7 +32,15 @@
       "all": "Notification + badge",
       "badge": "Badge only",
       "off": "Off"
-    }
+    },
+    "testNotif": "Send test notification",
+    "testTitle": "Zil",
+    "testMsg": "Notifications are working.",
+    "export": "Export backup",
+    "import": "Import backup",
+    "exportDone": "Backup exported.",
+    "importDone": "Backup imported.",
+    "importError": "Invalid backup file."
   },
 
   "addingPage": {

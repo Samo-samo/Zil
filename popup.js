@@ -95,6 +95,83 @@ if (notifyModeSelect) notifyModeSelect.addEventListener('change', saveSettings);
 
 await loadSettings();
 
+// ---- Test notification + backup (advanced settings) ----
+document.getElementById('testNotifBtn').addEventListener('click', async () => {
+    await chrome.notifications.create(`zil-test-${Date.now()}`, {
+        type: 'basic',
+        iconUrl: 'icons/bell-128.png',
+        title: t('settings.testTitle', 'Zil'),
+        message: t('settings.testMsg', 'Notifications are working.'),
+    });
+});
+
+function showBackupStatus(key, fallback, isError = false) {
+    const el = document.getElementById('backupStatus');
+    el.textContent = t(key, fallback);
+    el.classList.toggle('error-line', isError);
+    el.hidden = false;
+}
+
+document.getElementById('exportBtn').addEventListener('click', async () => {
+    const { channels = [], settings = {}, theme = 'light' } = await chrome.storage.local.get(['channels', 'settings', 'theme']);
+    const backup = {
+        app: 'zil',
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        channels: normalizeChannels(channels),
+        settings,
+        theme,
+    };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `zil-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    showBackupStatus('settings.exportDone', 'Backup exported.');
+});
+
+document.getElementById('importBtn').addEventListener('click', () => {
+    document.getElementById('importFile').click();
+});
+
+document.getElementById('importFile').addEventListener('change', async (event) => {
+    const file = event.target.files && event.target.files[0];
+    event.target.value = '';
+    if (!file) return;
+    try {
+        const data = JSON.parse(await file.text());
+        const incoming = normalizeChannels(Array.isArray(data) ? data : data && data.channels);
+        if (!incoming.length && !(data && data.app === 'zil')) {
+            throw new Error('bad-backup');
+        }
+        const valid = incoming.filter((c) => c && typeof c.id === 'string' && isChannelIdLike(c.id));
+        if (!valid.length) {
+            throw new Error('bad-backup');
+        }
+        const current = await getChannels();
+        const byId = new Map(current.map((c) => [c.id, c]));
+        for (const c of valid) {
+            byId.set(c.id, { unread: 0, ...byId.get(c.id), ...c });
+        }
+        await chrome.storage.local.set({ channels: [...byId.values()] });
+        if (data && data.settings && typeof data.settings === 'object') {
+            await chrome.storage.local.set({ settings: data.settings });
+            await loadSettings();
+        }
+        await syncBadge();
+        await renderChannels();
+        showBackupStatus('settings.importDone', 'Backup imported.');
+    } catch {
+        showBackupStatus('settings.importError', 'Invalid backup file.', true);
+    }
+});
+
+function isChannelIdLike(id) {
+    return typeof id === 'string' && id.length > 0;
+}
+
 async function syncBadge() {
     const channels = await getChannels();
     const total = channels.reduce((n, c) => n + (c.unread || 0), 0);

@@ -32,7 +32,15 @@
       "all": "Bildirim + rozet",
       "badge": "Sadece rozet",
       "off": "Kapalı"
-    }
+    },
+    "testNotif": "Test bildirimi gönder",
+    "testTitle": "Zil",
+    "testMsg": "Bildirimler çalışıyor.",
+    "export": "Yedeği dışa aktar",
+    "import": "Yedeği içe aktar",
+    "exportDone": "Yedek dışa aktarıldı.",
+    "importDone": "Yedek içe aktarıldı.",
+    "importError": "Geçersiz yedek dosyası."
   },
 
   "addingPage": {
