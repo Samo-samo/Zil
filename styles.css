@@ -367,12 +367,12 @@ details .content {
 }
 
 .thumb {
-    flex: 0 0 30%;
+    flex: 0 0 96px;
+    width: 96px;
     aspect-ratio: 16 / 9;
     height: auto;
     object-fit: cover;
     border-radius: var(--radius-sm);
-    flex-shrink: 0;
     background: var(--bg-btn);
 }
 

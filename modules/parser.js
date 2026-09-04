@@ -43,6 +43,13 @@ function decodeEntities(s) {
     .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)));
 }
 
+// Feed gives 480px hqdefault thumbs; the popup shows a ~96px image,
+// so downgrade to the 120px default.jpg variant to save bandwidth.
+function smallThumb(url) {
+  if (!url) return '';
+  return url.replace(/(hqdefault|mqdefault|sddefault|maxresdefault)(\.jpg)(\?.*)?$/, 'default$2$3');
+}
+
 // Every network call goes through here: hangs are worse than failures
 // (a hanging fetch in the service worker leaves the popup spinner forever).
 async function timedFetch(url, options, fetchFn = fetch) {
@@ -87,7 +94,7 @@ export function parseFeedXml(xml) {
       link:
         pick(body, /<link[^>]*href="([^"]+)"/).trim() ||
         `https://www.youtube.com/watch?v=${videoId}`,
-      thumb: pick(body, /<media:thumbnail[^>]*url="([^"]+)"/).trim(),
+      thumb: smallThumb(pick(body, /<media:thumbnail[^>]*url="([^"]+)"/).trim()),
     });
   }
   return { channelId, channelTitle, videos };
