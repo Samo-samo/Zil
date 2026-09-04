@@ -59,6 +59,29 @@
                 <svg class="details-arrow" xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
             </summary>
             <div class="content">
+                <div class="flex setting-row">
+                    <label for="checkInterval" data-i18n="settings.interval.label">Check interval</label>
+                    <div class="select-wrapper">
+                        <select name="checkInterval" id="checkInterval">
+                            <option value="15" data-i18n="settings.interval.o15">Every 15 minutes</option>
+                            <option value="30" data-i18n="settings.interval.o30">Every 30 minutes</option>
+                            <option value="60" data-i18n="settings.interval.o60">Every hour</option>
+                            <option value="120" data-i18n="settings.interval.o120">Every 2 hours</option>
+                        </select>
+                        <svg class="select-arrow" xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </div>
+                </div>
+                <div class="flex setting-row">
+                    <label for="notifyMode" data-i18n="settings.mode.label">Notifications</label>
+                    <div class="select-wrapper">
+                        <select name="notifyMode" id="notifyMode">
+                            <option value="all" data-i18n="settings.mode.all">Notification + badge</option>
+                            <option value="badge" data-i18n="settings.mode.badge">Badge only</option>
+                            <option value="off" data-i18n="settings.mode.off">Off</option>
+                        </select>
+                        <svg class="select-arrow" xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </div>
+                </div>
             </div>
         </details>
     </div>

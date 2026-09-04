@@ -5,7 +5,8 @@
     "refresh": "Check now",
     "unread": "New videos",
     "remove": "Remove channel",
-    "openVideo": "Open video"
+    "openVideo": "Open video",
+    "lastError": "Last check failed"
   },
   
   "settings": {
@@ -16,7 +17,20 @@
       "tr": "Turkish"
     },
     "advanced": "Advanced",
-    "darkMode": "Dark Mode"
+    "darkMode": "Dark Mode",
+    "interval": {
+      "label": "Check interval",
+      "o15": "Every 15 minutes",
+      "o30": "Every 30 minutes",
+      "o60": "Every hour",
+      "o120": "Every 2 hours"
+    },
+    "mode": {
+      "label": "Notifications",
+      "all": "Notification + badge",
+      "badge": "Badge only",
+      "off": "Off"
+    }
   },
 
   "addingPage": {

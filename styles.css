@@ -431,3 +431,15 @@ button.btn:disabled {
     opacity: 0.6;
     cursor: wait;
 }
+
+.setting-row {
+    padding: 4px 0;
+}
+
+.setting-row + .setting-row {
+    margin-top: 8px;
+}
+
+.error-line {
+    color: var(--primary);
+}

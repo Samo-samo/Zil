@@ -1,6 +1,9 @@
 import { lang } from './modules/localizator.js';
 import { resolveChannelId, fetchChannelFeed } from './modules/parser.js';
 
+const DEFAULT_SETTINGS = { checkIntervalMin: 15, notifyMode: 'all' };
+const REFRESH_TIMEOUT_MS = 25000;
+
 let selectedLang = '';
 let uiStrings = {};
 
@@ -67,20 +70,51 @@ darkModeToggle.addEventListener('change', async () => {
     }
 });
 
+// ---- Check settings (interval + notify mode) ----
+const checkIntervalSelect = document.getElementById('checkInterval');
+const notifyModeSelect = document.getElementById('notifyMode');
+
+async function loadSettings() {
+    const { settings = {} } = await chrome.storage.local.get(['settings']);
+    const merged = { ...DEFAULT_SETTINGS, ...settings };
+    if (checkIntervalSelect) checkIntervalSelect.value = String(merged.checkIntervalMin);
+    if (notifyModeSelect) notifyModeSelect.value = merged.notifyMode;
+}
+
+async function saveSettings() {
+    const settings = {
+        checkIntervalMin: Number(checkIntervalSelect ? checkIntervalSelect.value : 15) || 15,
+        notifyMode: notifyModeSelect ? notifyModeSelect.value : 'all',
+    };
+    await chrome.storage.local.set({ settings });
+    // Background rebuilds the alarm via storage.onChanged.
+}
+
+if (checkIntervalSelect) checkIntervalSelect.addEventListener('change', saveSettings);
+if (notifyModeSelect) notifyModeSelect.addEventListener('change', saveSettings);
+
+await loadSettings();
+
 async function syncBadge() {
     const { channels = [] } = await chrome.storage.local.get(['channels']);
     const total = channels.reduce((n, c) => n + (c.unread || 0), 0);
     await chrome.action.setBadgeText({ text: total > 0 ? String(total) : '' });
 }
 
+// Maps parser error codes to messages. Feed 404 means the channel does not
+// exist, so it is an input problem — not a generic fetch failure.
+function addErrorText(code) {
+    if (code === 'exists') return t('addingPage.errorExists', 'This channel is already tracked.');
+    if (code === 'unresolvable' || code === 'not-a-channel' || code === 'feed-http:404' || code === 'empty') {
+        return t('addingPage.errorInvalid', 'Could not find a channel for that input.');
+    }
+    const base = t('addingPage.errorFetch', 'Could not read the channel feed. Try again.');
+    return code && code !== 'fetch' ? `${base} (${code})` : base;
+}
+
 function showAddError(code) {
     const el = document.getElementById('addError');
-    const messages = {
-        exists: t('addingPage.errorExists', 'This channel is already tracked.'),
-        invalid: t('addingPage.errorInvalid', 'Could not find a channel for that input.'),
-        fetch: t('addingPage.errorFetch', 'Could not read the channel feed. Try again.'),
-    };
-    el.textContent = messages[code] || messages.fetch;
+    el.textContent = addErrorText(code);
     el.hidden = false;
 }
 
@@ -114,16 +148,16 @@ document.getElementById('saveChannelBtn').addEventListener('click', async (event
             lastPublished: latest ? latest.published : '',
             lastVideoUrl: latest ? latest.link : '',
             unread: 0,
+            lastCheck: new Date().toISOString(),
+            lastOk: true,
+            lastError: null,
         });
         await chrome.storage.local.set({ channels });
         channelInput.value = '';
         switchPage('homepage');
         await renderChannels();
     } catch (err) {
-        const code = err && err.message === 'unresolvable' ? 'invalid'
-            : err && err.message === 'not-a-channel' ? 'invalid'
-            : 'fetch';
-        showAddError(code);
+        showAddError(err && err.message ? err.message : 'fetch');
     } finally {
         btn.disabled = false;
         btn.textContent = originalText;
@@ -134,9 +168,17 @@ document.getElementById('refreshBtn').addEventListener('click', async (event) =>
     const btn = event.currentTarget;
     btn.classList.add('spin');
     try {
-        await chrome.runtime.sendMessage({ type: 'zil-check-now' });
+        // Race against a timeout: if the service worker hangs (e.g. a fetch
+        // never settles), the spinner must still stop.
+        const timeout = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('refresh-timeout')), REFRESH_TIMEOUT_MS)
+        );
+        await Promise.race([
+            chrome.runtime.sendMessage({ type: 'zil-check-now' }),
+            timeout,
+        ]);
     } catch {
-        // Service worker may be waking up; badge/list refresh on storage change anyway.
+        // Storage listener refreshes the list anyway on next successful check.
     } finally {
         await renderChannels();
         btn.classList.remove('spin');
@@ -158,6 +200,11 @@ async function removeChannel(channelId) {
     await chrome.storage.local.set({ channels: channels.filter((c) => c.id !== channelId) });
     await syncBadge();
     await renderChannels();
+}
+
+function lastErrorText(code) {
+    const prefix = t('home.lastError', 'Last check failed');
+    return `${prefix} (${code})`;
 }
 
 async function renderChannels() {
@@ -197,15 +244,23 @@ async function renderChannels() {
         latest.textContent = ch.lastVideoTitle || ch.id;
         latest.addEventListener('click', () => openVideo(ch.id, ch.lastVideoUrl));
 
+        card.appendChild(top);
+        card.appendChild(latest);
+
         const meta = document.createElement('div');
         meta.className = 'muted';
         if (ch.lastPublished) {
             meta.textContent = new Date(ch.lastPublished).toLocaleDateString();
         }
-
-        card.appendChild(top);
-        card.appendChild(latest);
         if (meta.textContent) card.appendChild(meta);
+
+        if (ch.lastOk === false && ch.lastError) {
+            const err = document.createElement('div');
+            err.className = 'muted error-line';
+            err.textContent = lastErrorText(ch.lastError);
+            card.appendChild(err);
+        }
+
         list.appendChild(card);
     }
 }

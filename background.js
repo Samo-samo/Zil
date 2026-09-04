@@ -1,14 +1,25 @@
 import { fetchChannelFeed } from './modules/parser.js';
 
 const ALARM_NAME = 'checkYouTubeRSS';
-const CHECK_INTERVAL_MIN = 15;
 const BADGE_COLOR = '#dc2626';
 const NOTIF_ICON = 'icons/bell-128.png';
 
+export const DEFAULT_SETTINGS = { checkIntervalMin: 15, notifyMode: 'all' };
+// notifyMode: 'all' (notification + badge) | 'badge' (badge only) | 'off'
+
+async function getSettings() {
+  const { settings = {} } = await chrome.storage.local.get(['settings']);
+  const merged = { ...DEFAULT_SETTINGS, ...settings };
+  if (![15, 30, 60, 120].includes(merged.checkIntervalMin)) merged.checkIntervalMin = 15;
+  if (!['all', 'badge', 'off'].includes(merged.notifyMode)) merged.notifyMode = 'all';
+  return merged;
+}
+
 async function ensureAlarm() {
+  const { checkIntervalMin } = await getSettings();
   const alarm = await chrome.alarms.get(ALARM_NAME);
-  if (!alarm) {
-    await chrome.alarms.create(ALARM_NAME, { periodInMinutes: CHECK_INTERVAL_MIN });
+  if (!alarm || Math.round(alarm.periodInMinutes) !== checkIntervalMin) {
+    await chrome.alarms.create(ALARM_NAME, { periodInMinutes: checkIntervalMin });
   }
 }
 
@@ -28,9 +39,14 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   }
 });
 
-// Badge mirrors total unread across channels; storage change wakes the SW.
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local' && changes.channels) {
+  if (area !== 'local') return;
+  if (changes.channels) {
+    updateBadge();
+  }
+  if (changes.settings) {
+    // Interval changed in popup settings -> rebuild the alarm.
+    ensureAlarm();
     updateBadge();
   }
 });
@@ -48,7 +64,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg && msg.type === 'zil-check-now') {
     checkNewVideos()
       .then((result) => sendResponse(result))
-      .catch((err) => sendResponse({ ok: false, error: String(err && err.message || err) }));
+      .catch((err) => sendResponse({ ok: false, error: String((err && err.message) || err) }));
     return true;
   }
   return false;
@@ -56,6 +72,11 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
 async function updateBadge() {
   try {
+    const { notifyMode } = await getSettings();
+    if (notifyMode === 'off') {
+      await chrome.action.setBadgeText({ text: '' });
+      return;
+    }
     const { channels = [] } = await chrome.storage.local.get(['channels']);
     const total = channels.reduce((n, c) => n + (c.unread || 0), 0);
     await chrome.action.setBadgeBackgroundColor({ color: BADGE_COLOR });
@@ -79,6 +100,7 @@ async function notifyNewVideo(channel, video) {
 }
 
 async function checkNewVideos() {
+  const { notifyMode } = await getSettings();
   const { channels = [] } = await chrome.storage.local.get(['channels']);
   if (!channels.length) {
     await updateBadge();
@@ -86,12 +108,19 @@ async function checkNewVideos() {
   }
 
   let newVideos = 0;
+  const now = new Date().toISOString();
   const updated = [];
   for (const ch of channels) {
     try {
       const feed = await fetchChannelFeed(ch.id);
       const latest = feed.videos[0];
-      const next = { ...ch, name: feed.channelTitle || ch.name };
+      const next = {
+        ...ch,
+        name: feed.channelTitle || ch.name,
+        lastCheck: now,
+        lastOk: true,
+        lastError: null,
+      };
       if (latest) {
         next.lastVideoTitle = latest.title;
         next.lastPublished = latest.published;
@@ -103,13 +132,16 @@ async function checkNewVideos() {
           next.lastVideoId = latest.videoId;
           next.unread = (ch.unread || 0) + 1;
           newVideos += 1;
-          await notifyNewVideo(next, latest);
+          if (notifyMode === 'all') {
+            await notifyNewVideo(next, latest);
+          }
         }
       }
       updated.push(next);
     } catch (err) {
-      console.warn(`Zil: check failed for ${ch.id}`, err);
-      updated.push(ch);
+      const code = String((err && err.message) || err);
+      console.warn(`Zil: check failed for ${ch.id} (${code})`);
+      updated.push({ ...ch, lastCheck: now, lastOk: false, lastError: code });
     }
   }
 

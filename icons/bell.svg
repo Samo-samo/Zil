@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="zil-tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e83838"/>
+      <stop offset="0.45" stop-color="#dc2626"/>
+      <stop offset="1" stop-color="#b91f1f"/>
+    </linearGradient>
+    <linearGradient id="zil-bell" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#eceff1"/>
+    </linearGradient>
+    <radialGradient id="zil-clapper" cx="0.38" cy="0.32" r="0.95">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#dfe4e8"/>
+    </radialGradient>
+  </defs>
+
+  <!-- red rounded-square tile -->
+  <rect x="4" y="4" width="120" height="120" rx="26" fill="url(#zil-tile)"/>
+  <!-- faint inner top highlight -->
+  <path d="M32,8 H96 Q119,8 119,31 V40 Q100,29 64,29 Q28,29 9,40 V31 Q9,8 32,8 Z" fill="#ffffff" opacity="0.18"/>
+  <rect x="4" y="4" width="120" height="120" rx="26" fill="none" stroke="#7f1d1d" stroke-opacity="0.35" stroke-width="2"/>
+
+  <!-- soft drop shadow of the bell onto the tile -->
+  <g fill="#000000" opacity="0.32" transform="translate(0,2.2)">
+    <path d="M57,41 C53,42.5 49,46 47,50 C45,55 44,61 43,66 C42,71 40,76 38,81 C36,85 32,89 30,92 L98,92 C96,89 92,85 90,81 C88,76 86,71 85,66 C84,61 83,55 81,50 C79,46 75,42.5 71,41 Z"/>
+    <rect x="60.5" y="34" width="7" height="9"/>
+    <circle cx="64" cy="29" r="7.5"/>
+    <rect x="24" y="90" width="80" height="9" rx="4.5"/>
+    <circle cx="64" cy="109.5" r="8.5"/>
+  </g>
+
+  <!-- bell silhouette -->
+  <path d="M57,41 C53,42.5 49,46 47,50 C45,55 44,61 43,66 C42,71 40,76 38,81 C36,85 32,89 30,92 L98,92 C96,89 92,85 90,81 C88,76 86,71 85,66 C84,61 83,55 81,50 C79,46 75,42.5 71,41 Z" fill="url(#zil-bell)"/>
+  <rect x="60.5" y="34" width="7" height="9" fill="url(#zil-bell)"/>
+  <!-- top knob / loop (ring; tile shows through the hole) -->
+  <path fill-rule="evenodd" fill="url(#zil-bell)" d="M56.5,29 a7.5,7.5 0 1,0 15,0 a7.5,7.5 0 1,0 -15,0 M60.8,29 a3.2,3.2 0 1,1 6.4,0 a3.2,3.2 0 1,1 -6.4,0"/>
+  <!-- carved rim line separating the flared skirt -->
+  <rect x="31" y="87.2" width="66" height="2.2" rx="1.1" fill="#b91f1f"/>
+  <!-- flared skirt rim -->
+  <rect x="24" y="90" width="80" height="9" rx="4.5" fill="url(#zil-bell)"/>
+  <!-- round clapper ball, with a visible gap above it -->
+  <circle cx="64" cy="109.5" r="8.5" fill="url(#zil-clapper)"/>
+</svg>

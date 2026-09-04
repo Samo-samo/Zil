@@ -5,7 +5,8 @@
     "refresh": "Şimdi denetle",
     "unread": "Yeni videolar",
     "remove": "Kanalı kaldır",
-    "openVideo": "Videoyu aç"
+    "openVideo": "Videoyu aç",
+    "lastError": "Son kontrol başarısız"
   },
   
   "settings": {
@@ -16,7 +17,20 @@
       "tr": "Türkçe"
     },
     "advanced": "Gelişmiş",
-    "darkMode": "Karanlık Mod"
+    "darkMode": "Karanlık Mod",
+    "interval": {
+      "label": "Kontrol aralığı",
+      "o15": "15 dakikada bir",
+      "o30": "30 dakikada bir",
+      "o60": "Saatte bir",
+      "o120": "2 saatte bir"
+    },
+    "mode": {
+      "label": "Bildirimler",
+      "all": "Bildirim + rozet",
+      "badge": "Sadece rozet",
+      "off": "Kapalı"
+    }
   },
 
   "addingPage": {
