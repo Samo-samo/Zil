@@ -136,6 +136,7 @@ async function checkNewVideos() {
         next.lastVideoTitle = latest.title;
         next.lastPublished = latest.published;
         next.lastVideoUrl = latest.link;
+        next.lastThumb = latest.thumb || ch.lastThumb || '';
         if (!ch.lastVideoId) {
           // First successful read: baseline without notifying.
           next.lastVideoId = latest.videoId;

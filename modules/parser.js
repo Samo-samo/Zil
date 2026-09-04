@@ -87,6 +87,7 @@ export function parseFeedXml(xml) {
       link:
         pick(body, /<link[^>]*href="([^"]+)"/).trim() ||
         `https://www.youtube.com/watch?v=${videoId}`,
+      thumb: pick(body, /<media:thumbnail[^>]*url="([^"]+)"/).trim(),
     });
   }
   return { channelId, channelTitle, videos };

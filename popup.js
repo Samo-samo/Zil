@@ -157,6 +157,7 @@ document.getElementById('saveChannelBtn').addEventListener('click', async (event
             lastVideoTitle: latest ? latest.title : '',
             lastPublished: latest ? latest.published : '',
             lastVideoUrl: latest ? latest.link : '',
+            lastThumb: latest && latest.thumb ? latest.thumb : '',
             unread: 0,
             lastCheck: new Date().toISOString(),
             lastOk: true,
@@ -176,6 +177,7 @@ document.getElementById('saveChannelBtn').addEventListener('click', async (event
 
 document.getElementById('refreshBtn').addEventListener('click', async (event) => {
     const btn = event.currentTarget;
+    const started = Date.now();
     btn.classList.add('spin');
     try {
         // Race against a timeout: if the service worker hangs (e.g. a fetch
@@ -190,19 +192,50 @@ document.getElementById('refreshBtn').addEventListener('click', async (event) =>
     } catch {
         // Storage listener refreshes the list anyway on next successful check.
     } finally {
+        // Minimum visible spin so fast refreshes still give feedback.
+        const elapsed = Date.now() - started;
+        if (elapsed < 600) {
+            await new Promise((resolve) => setTimeout(resolve, 600 - elapsed));
+        }
         await renderChannels();
         btn.classList.remove('spin');
     }
 });
 
-async function openVideo(channelId, url) {
+async function openVideo(channelId, url, active = true) {
     if (!url) return;
-    await chrome.tabs.create({ url });
+    await chrome.tabs.create({ url, active });
+    if (!active) return; // background tab: leave unread/badge untouched
     const channels = await getChannels();
     const next = channels.map((c) => (c.id === channelId ? { ...c, unread: 0 } : c));
     await chrome.storage.local.set({ channels: next });
     await syncBadge();
     await renderChannels();
+}
+
+async function openChannel(channelId, active = true) {
+    await chrome.tabs.create({ url: `https://www.youtube.com/channel/${channelId}`, active });
+}
+
+// Relative time without locale files: Intl handles the language.
+function timeAgo(iso) {
+    const ts = new Date(iso).getTime();
+    if (Number.isNaN(ts)) return '';
+    const seconds = Math.round((Date.now() - ts) / 1000);
+    const locale = (typeof navigator !== 'undefined' && navigator.language) || 'en';
+    try {
+        const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
+        if (Math.abs(seconds) < 45) return rtf.format(-seconds, 'second');
+        const units = [[31536000, 'year'], [2592000, 'month'], [86400, 'day'], [3600, 'hour'], [60, 'minute']];
+        for (const [len, unit] of units) {
+            if (Math.abs(seconds) >= len || unit === 'minute') {
+                return rtf.format(-Math.round(seconds / len), unit);
+            }
+        }
+    } catch {
+        return new Date(ts).toLocaleDateString();
+    }
+    return '';
 }
 
 async function removeChannel(channelId) {
@@ -226,12 +259,47 @@ async function renderChannels() {
     for (const ch of channels) {
         const card = document.createElement('div');
         card.className = 'channel-card';
+        card.title = t('home.openVideo', 'Open video');
+        const videoUrl = ch.lastVideoUrl || '';
+        const channelUrl = `https://www.youtube.com/channel/${ch.id}`;
+        // Whole card opens the video; middle-click opens in a background tab.
+        card.addEventListener('click', () => openVideo(ch.id, videoUrl));
+        card.addEventListener('auxclick', (e) => {
+            if (e.button === 1) {
+                e.preventDefault();
+                openVideo(ch.id, videoUrl, false);
+            }
+        });
+
+        if (ch.lastThumb) {
+            const thumb = document.createElement('img');
+            thumb.className = 'thumb';
+            thumb.src = ch.lastThumb;
+            thumb.alt = '';
+            thumb.loading = 'lazy';
+            card.appendChild(thumb);
+        }
+
+        const body = document.createElement('div');
+        body.className = 'grow channel-body';
 
         const top = document.createElement('div');
         top.className = 'flex';
-        const name = document.createElement('strong');
-        name.className = 'grow channel-name';
+        const name = document.createElement('button');
+        name.className = 'channel-name grow';
+        name.title = t('home.openChannel', 'Open channel');
         name.textContent = ch.name || ch.id;
+        name.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openChannel(ch.id);
+        });
+        name.addEventListener('auxclick', (e) => {
+            if (e.button === 1) {
+                e.preventDefault();
+                e.stopPropagation();
+                openChannel(ch.id, false);
+            }
+        });
         if (ch.unread > 0) {
             const dot = document.createElement('span');
             dot.className = 'unread-dot';
@@ -244,33 +312,36 @@ async function renderChannels() {
         del.className = 'icon-btn small';
         del.title = t('home.remove', 'Remove channel');
         del.textContent = '×';
-        del.addEventListener('click', () => removeChannel(ch.id));
+        del.addEventListener('click', (e) => {
+            e.stopPropagation();
+            removeChannel(ch.id);
+        });
         top.appendChild(name);
         top.appendChild(del);
 
-        const latest = document.createElement('button');
-        latest.className = 'link-btn';
-        latest.title = t('home.openVideo', 'Open video');
+        const latest = document.createElement('div');
+        latest.className = 'latest-title';
         latest.textContent = ch.lastVideoTitle || ch.id;
-        latest.addEventListener('click', () => openVideo(ch.id, ch.lastVideoUrl));
 
-        card.appendChild(top);
-        card.appendChild(latest);
+        body.appendChild(top);
+        body.appendChild(latest);
 
         const meta = document.createElement('div');
         meta.className = 'muted';
         if (ch.lastPublished) {
-            meta.textContent = new Date(ch.lastPublished).toLocaleDateString();
+            meta.textContent = timeAgo(ch.lastPublished);
+            meta.title = new Date(ch.lastPublished).toLocaleString();
         }
-        if (meta.textContent) card.appendChild(meta);
+        if (meta.textContent) body.appendChild(meta);
 
         if (ch.lastOk === false && ch.lastError) {
             const err = document.createElement('div');
             err.className = 'muted error-line';
             err.textContent = lastErrorText(ch.lastError);
-            card.appendChild(err);
+            body.appendChild(err);
         }
 
+        card.appendChild(body);
         list.appendChild(card);
     }
 }
