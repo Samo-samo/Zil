@@ -1,7 +1,11 @@
 {
   "home": {
     "title": "Zil",
-    "nothing": "No video yet."
+    "nothing": "No video yet.",
+    "refresh": "Check now",
+    "unread": "New videos",
+    "remove": "Remove channel",
+    "openVideo": "Open video"
   },
   
   "settings": {
@@ -19,6 +23,10 @@
     "title": "Channel Adding Page",
     "channelName": "Channel name:",
     "channelPlaceholder": "Enter a channel ID...",
-    "submitBtn": "Save & Start"
+    "submitBtn": "Save & Start",
+    "adding": "Adding…",
+    "errorInvalid": "Could not find a channel for that input. Paste a channel ID, channel URL or @handle.",
+    "errorFetch": "Could not read the channel feed. Check the input and try again.",
+    "errorExists": "This channel is already tracked."
   }
 }

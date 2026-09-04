@@ -1,7 +1,11 @@
 {
   "home": {
     "title": "Zil",
-    "nothing": "Henüz hiç video yok."
+    "nothing": "Henüz hiç video yok.",
+    "refresh": "Şimdi denetle",
+    "unread": "Yeni videolar",
+    "remove": "Kanalı kaldır",
+    "openVideo": "Videoyu aç"
   },
   
   "settings": {
@@ -19,6 +23,10 @@
     "title": "Kanal Ekleme Sayfası",
     "channelName": "Kanal adı:",
     "channelPlaceholder": "Kanal ID'sini girin",
-    "submitBtn": "Kaydet & Başla"
+    "submitBtn": "Kaydet & Başla",
+    "adding": "Ekleniyor…",
+    "errorInvalid": "Bu girdi için kanal bulunamadı. Kanal ID'si, kanal URL'si ya da @kullanıcıadı yapıştırın.",
+    "errorFetch": "Kanal akışı okunamadı. Girdiyi kontrol edip tekrar deneyin.",
+    "errorExists": "Bu kanal zaten takip ediliyor."
   }
 }

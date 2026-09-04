@@ -5,7 +5,8 @@
   "description": "YouTube Notification Extension",
   "permissions": [
     "storage",
-    "alarms"
+    "alarms",
+    "notifications"
   ],
   "host_permissions": [
     "https://youtube.com/*",
@@ -16,6 +17,16 @@
     "type": "module"
   },
   "action": {
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/bell-16.png",
+      "48": "icons/bell-48.png",
+      "128": "icons/bell-128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/bell-16.png",
+    "48": "icons/bell-48.png",
+    "128": "icons/bell-128.png"
   }
 }

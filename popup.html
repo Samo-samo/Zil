@@ -11,6 +11,9 @@
     <div id="homepage">
         <div class="flex header-area">
             <h2 data-i18n="home.title" class="grow">Zil...</h2>
+            <button id="refreshBtn" class="icon-btn" data-i18n-title="home.refresh" title="Check now">
+                <svg xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+            </button>
             <button id="addingPageBtn" class="icon-btn" title="Add">
                 <svg xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
             </button>
@@ -19,9 +22,10 @@
             </button>
         </div>
 
-        <div class="empty-state" data-i18n="home.nothing">
+        <div id="homeEmpty" class="empty-state" data-i18n="home.nothing">
             No items found.
         </div>
+        <div id="channelList" class="channel-list"></div>
     </div>
 
     <!-- SETTINGS PAGE -->
@@ -74,6 +78,7 @@
         </div>
 
         <button id="saveChannelBtn" class="btn" data-i18n="addingPage.submitBtn">Save & Start</button>
+        <p id="addError" class="error" hidden></p>
 
         <details>
             <summary>

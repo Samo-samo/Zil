@@ -342,3 +342,92 @@ details .content {
         transform: translateY(0);
     }
 }
+
+.channel-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.channel-card {
+    padding: 12px 14px;
+    border: var(--border-color) 1px solid;
+    border-radius: var(--radius-md);
+    background: var(--bg-card);
+    transition: border-color 0.2s ease;
+}
+
+.channel-card:hover {
+    border-color: var(--border-color-hover);
+}
+
+.channel-name {
+    font-size: var(--fs-sm);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.unread-dot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    border-radius: 50px;
+    background: var(--primary);
+    color: #fff;
+    font-size: var(--fs-xs);
+    font-weight: 700;
+    vertical-align: middle;
+}
+
+.link-btn {
+    padding: 0;
+    margin-top: 4px;
+    color: var(--text-muted);
+    font-size: var(--fs-sm);
+    text-align: left;
+    display: block;
+    width: 100%;
+}
+
+.link-btn:hover {
+    color: var(--primary);
+    text-decoration: underline;
+}
+
+.muted {
+    color: var(--text-muted);
+    font-size: var(--fs-xs);
+    margin-top: 4px;
+}
+
+.error {
+    color: var(--primary);
+    font-size: var(--fs-sm);
+    font-weight: 500;
+    margin: 10px 0 0;
+}
+
+.icon-btn.small {
+    width: 26px;
+    height: 26px;
+    font-size: 16px;
+    line-height: 1;
+}
+
+.icon-btn.spin svg {
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+button.btn:disabled {
+    opacity: 0.6;
+    cursor: wait;
+}
