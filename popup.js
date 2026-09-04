@@ -205,7 +205,7 @@ document.getElementById('refreshBtn').addEventListener('click', async (event) =>
 async function openVideo(channelId, url, active = true) {
     if (!url) return;
     await chrome.tabs.create({ url, active });
-    if (!active) return; // background tab: leave unread/badge untouched
+    // Any open (foreground or background tab) marks the channel as read.
     const channels = await getChannels();
     const next = channels.map((c) => (c.id === channelId ? { ...c, unread: 0 } : c));
     await chrome.storage.local.set({ channels: next });
@@ -244,6 +244,16 @@ async function removeChannel(channelId) {
     await syncBadge();
     await renderChannels();
 }
+
+async function markAllRead() {
+    const channels = await getChannels();
+    if (!channels.some((c) => c.unread > 0)) return;
+    await chrome.storage.local.set({ channels: channels.map((c) => ({ ...c, unread: 0 })) });
+    await syncBadge();
+    await renderChannels();
+}
+
+document.getElementById('markReadBtn').addEventListener('click', markAllRead);
 
 function lastErrorText(code) {
     const prefix = t('home.lastError', 'Last check failed');
