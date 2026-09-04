@@ -30,7 +30,7 @@ body.dark {
 }
 
 body {
-    width: 350px;
+    width: 420px;
     box-sizing: border-box;
     overflow-y: auto;
     overflow-x: hidden;
@@ -367,8 +367,9 @@ details .content {
 }
 
 .thumb {
-    width: 72px;
-    height: 54px;
+    flex: 0 0 30%;
+    aspect-ratio: 16 / 9;
+    height: auto;
     object-fit: cover;
     border-radius: var(--radius-sm);
     flex-shrink: 0;
@@ -385,9 +386,14 @@ details .content {
     font-weight: 700;
     color: var(--text-main);
     text-align: left;
+    align-self: flex-start;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.card-top {
+    align-items: flex-start;
 }
 
 .channel-name:hover {

@@ -284,7 +284,7 @@ async function renderChannels() {
         body.className = 'grow channel-body';
 
         const top = document.createElement('div');
-        top.className = 'flex';
+        top.className = 'flex card-top';
         const name = document.createElement('button');
         name.className = 'channel-name grow';
         name.title = t('home.openChannel', 'Open channel');
