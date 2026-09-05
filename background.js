@@ -1,4 +1,4 @@
-import { fetchChannelFeed, normalizeChannels, isShorts, fetchLiveVideoId, fetchChannelAvatar } from './modules/parser.js';
+import { fetchChannelFeed, normalizeChannels, scopeOf, scopePool, scopeAllowsLive, fetchLiveVideoId, fetchChannelAvatar } from './modules/parser.js';
 
 const ALARM_NAME = 'checkYouTubeRSS';
 const BADGE_COLOR = '#dc2626';
@@ -183,9 +183,10 @@ async function checkNewVideos() {
       // With the Shorts filter on, track the newest non-Shorts video, but
       // still compare against the unfiltered newest so a fresh Shorts upload
       // does not re-notify for the video below it on the next run.
-      // Per-channel Shorts override wins over the global filter.
-      const hideShorts = ch.chShorts === 'hide' || (ch.chShorts !== 'show' && skipShorts);
-      const pool = hideShorts ? feed.videos.filter((v) => !isShorts(v)) : feed.videos;
+      // Per-channel content scope (videos / shorts / live combos).
+      const scope = scopeOf(ch);
+      const pool = scopePool(scope, feed.videos, skipShorts);
+      const allowLive = scopeAllowsLive(scope);
       const latest = pool[0];
       const next = {
         ...ch,
@@ -253,7 +254,7 @@ async function checkNewVideos() {
       // Dual strategy inside fetchLiveVideoId; result diagnostics are stored
       // so the popup can show why a live stream was (not) seen.
       try {
-        const live = await fetchLiveVideoId(ch.id);
+        const live = allowLive ? await fetchLiveVideoId(ch.id) : { liveId: null, via: 'filtered', debug: '' };
         const liveId = live && live.liveId ? live.liveId : null;
         next.isLive = !!liveId;
         next.liveVideoId = liveId;

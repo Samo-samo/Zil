@@ -1,5 +1,5 @@
 import { lang } from './modules/localizator.js';
-import { resolveChannelId, fetchChannelFeed, normalizeChannels, isShorts, fetchChannelAvatar } from './modules/parser.js';
+import { resolveChannelId, fetchChannelFeed, normalizeChannels, isShorts, fetchChannelAvatar, scopeOf, scopePool, CH_SCOPE_ORDER } from './modules/parser.js';
 
 const DEFAULT_SETTINGS = { checkIntervalMin: 15, notifyMode: 'all', skipShorts: false };
 const REFRESH_TIMEOUT_MS = 25000;
@@ -238,9 +238,7 @@ document.getElementById('saveChannelBtn').addEventListener('click', async (event
         }
         const feed = await fetchChannelFeed(channelId);
         const { settings = {} } = await chrome.storage.local.get(['settings']);
-        const pool = settings.skipShorts === true
-            ? feed.videos.filter((v) => !isShorts(v))
-            : feed.videos;
+        const pool = scopePool('default', feed.videos, settings.skipShorts === true);
         const newest = feed.videos[0];
         const shown = pool[0] || newest;
         let avatar = '';
@@ -402,17 +400,28 @@ function detailRow(label, valueText, opts = {}) {
     return row;
 }
 
-function radioRow(group, value, label, checked, onPick) {
+function selectRow(id, labelText, options, current, onPick) {
+    const wrap = document.createElement('div');
+    wrap.className = 'flex setting-row';
     const lab = document.createElement('label');
-    lab.className = 'radio-row';
-    const input = document.createElement('input');
-    input.type = 'radio';
-    input.name = group;
-    input.checked = checked;
-    input.addEventListener('change', () => onPick(value));
-    lab.appendChild(input);
-    lab.appendChild(document.createTextNode(label));
-    return lab;
+    lab.htmlFor = id;
+    lab.textContent = labelText;
+    const selWrap = document.createElement('div');
+    selWrap.className = 'select-wrapper';
+    const sel = document.createElement('select');
+    sel.id = id;
+    for (const [value, label] of options) {
+        const opt = document.createElement('option');
+        opt.value = value;
+        opt.textContent = label;
+        sel.appendChild(opt);
+    }
+    sel.value = current;
+    sel.addEventListener('change', () => onPick(sel.value));
+    selWrap.appendChild(sel);
+    wrap.appendChild(lab);
+    wrap.appendChild(selWrap);
+    return wrap;
 }
 
 function closeChannelModal() {
@@ -428,33 +437,37 @@ async function openChannelModal(channelId) {
     const body = document.getElementById('modalBody');
     body.textContent = '';
 
-    const notifLabel = document.createElement('div');
-    notifLabel.className = 'section-label';
-    notifLabel.textContent = t('home.chNotify', 'Channel notifications');
-    body.appendChild(notifLabel);
     const nState = CH_NOTIFY_ORDER.includes(ch.chNotify) ? ch.chNotify : 'default';
-    for (const opt of CH_NOTIFY_ORDER) {
-        body.appendChild(radioRow(`chNotify-${ch.id}`, opt, chNotifyLabel(opt), opt === nState, async (v) => {
+    body.appendChild(selectRow(
+        `chNotify-${ch.id}`,
+        t('home.chNotify', 'Channel notifications'),
+        CH_NOTIFY_ORDER.map((opt) => [opt, chNotifyLabel(opt)]),
+        nState,
+        async (v) => {
             const all = await getChannels();
             await chrome.storage.local.set({ channels: all.map((c) => (c.id === ch.id ? { ...c, chNotify: v } : c)) });
             await syncBadge();
             await renderHome();
-        }));
-    }
+        }
+    ));
 
-    const shLabel = document.createElement('div');
-    shLabel.className = 'section-label';
-    shLabel.style.marginTop = '12px';
-    shLabel.textContent = t('home.chShorts', 'Channel Shorts filter');
-    body.appendChild(shLabel);
-    const sState = CH_SHORTS_ORDER.includes(ch.chShorts) ? ch.chShorts : 'default';
-    for (const opt of CH_SHORTS_ORDER) {
-        body.appendChild(radioRow(`chShorts-${ch.id}`, opt, chShortsLabel(opt), opt === sState, async (v) => {
+    body.appendChild(selectRow(
+        `chScope-${ch.id}`,
+        t('home.contentScope', 'Content'),
+        CH_SCOPE_ORDER.map((opt) => [opt, scopeLabel(opt)]),
+        scopeOf(ch),
+        async (v) => {
             const all = await getChannels();
-            await chrome.storage.local.set({ channels: all.map((c) => (c.id === ch.id ? { ...c, chShorts: v } : c)) });
+            await chrome.storage.local.set({
+                channels: all.map((c) => {
+                    if (c.id !== ch.id) return c;
+                    const { chShorts: _legacy, ...rest } = c;
+                    return { ...rest, chScope: v };
+                }),
+            });
             await renderHome();
-        }));
-    }
+        }
+    ));
 
     document.getElementById('modalOverlay').hidden = false;
 }
@@ -464,12 +477,14 @@ document.getElementById('modalOverlay').addEventListener('click', (e) => {
     if (e.target.id === 'modalOverlay') closeChannelModal();
 });
 
-const CH_SHORTS_ORDER = ['default', 'hide', 'show'];
-
-function chShortsLabel(state) {
-    if (state === 'hide') return t('settings.chShortsHide', 'Hide Shorts');
-    if (state === 'show') return t('settings.chShortsShow', 'Show Shorts');
-    return t('settings.chShortsDefault', 'Follow global');
+function scopeLabel(state) {
+    if (state === 'all') return t('settings.scopeAll', 'Everything');
+    if (state === 'videos') return t('settings.scopeVideos', 'Only videos');
+    if (state === 'shorts') return t('settings.scopeShorts', 'Only Shorts');
+    if (state === 'live') return t('settings.scopeLive', 'Only live');
+    if (state === 'videos-shorts') return t('settings.scopeVideosShorts', 'Videos + Shorts');
+    if (state === 'videos-live') return t('settings.scopeVideosLive', 'Videos + live');
+    return t('settings.scopeDefault', 'Follow global');
 }
 
 async function removeChannel(channelId) {
@@ -537,9 +552,8 @@ async function renderVideoList() {
     const items = [];
     for (const ch of channels) {
         const recent = Array.isArray(ch.recent) ? ch.recent : [];
-        const hideShorts = ch.chShorts === 'hide' || (ch.chShorts !== 'show' && settings.skipShorts === true);
-        for (const v of recent) {
-            if (hideShorts && isShorts(v)) continue;
+        const pool = scopePool(scopeOf(ch), recent, settings.skipShorts === true);
+        for (const v of pool) {
             items.push({
                 ...v,
                 channelId: ch.id,

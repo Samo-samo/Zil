@@ -34,6 +34,30 @@ export function isShorts(video) {
   return !!video && typeof video.link === 'string' && video.link.includes('/shorts/');
 }
 
+// Per-channel content scope. 'default' follows the global Shorts filter;
+// legacy chShorts values are mapped so old settings keep working.
+export const CH_SCOPE_ORDER = ['default', 'all', 'videos', 'shorts', 'live', 'videos-shorts', 'videos-live'];
+
+export function scopeOf(ch) {
+  if (ch && CH_SCOPE_ORDER.includes(ch.chScope)) return ch.chScope;
+  if (ch && ch.chShorts === 'hide') return 'videos-live';
+  if (ch && ch.chShorts === 'show') return 'all';
+  return 'default';
+}
+
+// Entry filter for a resolved scope: 'live' channels contribute no entries
+// (live is a separate event), 'shorts' contributes only Shorts.
+export function scopePool(scope, videos, hideShortsGlobal) {
+  if (scope === 'live') return [];
+  if (scope === 'shorts') return videos.filter(isShorts);
+  const hide = scope === 'videos' || scope === 'videos-live' || (scope === 'default' && hideShortsGlobal === true);
+  return hide ? videos.filter((v) => !isShorts(v)) : videos;
+}
+
+export function scopeAllowsLive(scope) {
+  return scope !== 'videos' && scope !== 'shorts';
+}
+
 // Live detection, two strategies (returns { liveId, via, debug }):
 //  1. /channel/ID/live redirects to a watch URL while live.
 //  2. The embed player page contains a videoId only while live — verified

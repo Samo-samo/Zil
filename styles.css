@@ -811,19 +811,6 @@ button.btn.secondary:hover {
     margin-bottom: 6px;
 }
 
-.radio-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 0;
-    font-size: var(--fs-sm);
-    cursor: pointer;
-}
-
-.radio-row input {
-    accent-color: var(--primary);
-}
-
 .live-btn {
     display: inline-flex;
     align-items: center;
