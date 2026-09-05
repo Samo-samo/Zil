@@ -281,11 +281,11 @@ document.getElementById('refreshBtn').addEventListener('click', async (event) =>
     } catch {
         // Storage listener refreshes the list anyway on next successful check.
     } finally {
-        // Minimum visible spin: 3 full turns at 0.6s so fast refreshes
+        // Minimum visible spin: 2 full turns at 0.6s so fast refreshes
         // still give smooth feedback instead of a flicker.
         const elapsed = Date.now() - started;
-        if (elapsed < 1800) {
-            await new Promise((resolve) => setTimeout(resolve, 1800 - elapsed));
+        if (elapsed < 1200) {
+            await new Promise((resolve) => setTimeout(resolve, 1200 - elapsed));
         }
         await renderChannels();
         btn.classList.remove('spin');
