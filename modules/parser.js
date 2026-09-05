@@ -48,8 +48,8 @@ export async function fetchLiveVideoId(channelId, fetchFn = fetch) {
       if (/consent\.youtube\.com|accounts\.google\.com/.test(url)) {
         return { liveId: null, via: 'consent', debug: url.slice(0, 80) };
       }
-      const m = url.match(/[?&]v=([A-Za-z0-9_-]{11})/);
-      if (m) return { liveId: m[1], via: 'redirect', debug: '' };
+      const m = url.match(/(?:[?&]v=|\/live\/|\/embed\/)([A-Za-z0-9_-]{11})/);
+      if (m) return { liveId: m[1], via: 'redirect', debug: url.slice(0, 120) };
     }
   } catch {
     // Fall through to the embed strategy.
@@ -62,7 +62,8 @@ export async function fetchLiveVideoId(channelId, fetchFn = fetch) {
     );
     if (res2.ok) {
       const html = await res2.text();
-      const vid = html.match(/"videoId":"([A-Za-z0-9_-]{11})"/);
+      const vid = html.match(/"videoId":"([A-Za-z0-9_-]{11})"/)
+        || html.match(/\\"videoId\\":\\"([A-Za-z0-9_-]{11})/);
       if (vid) return { liveId: vid[1], via: 'embed', debug: '' };
       return { liveId: null, via: 'offline', debug: '' };
     }

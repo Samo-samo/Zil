@@ -774,6 +774,7 @@ async function renderChannelList() {
             }
             liveRow.appendChild(liveK);
             liveRow.appendChild(liveV);
+            if (ch.liveDebug) liveV.title = ch.liveDebug;
             detail.appendChild(liveRow);
 
             const actions = document.createElement('div');

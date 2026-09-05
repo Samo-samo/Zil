@@ -258,6 +258,7 @@ async function checkNewVideos() {
         next.isLive = !!liveId;
         next.liveVideoId = liveId;
         next.liveVia = live ? live.via : 'none';
+        next.liveDebug = live && live.debug ? live.debug : '';
         next.liveCheckedAt = now;
         if (liveId && ch.lastNotifiedLiveId !== liveId) {
           next.lastNotifiedLiveId = liveId;
