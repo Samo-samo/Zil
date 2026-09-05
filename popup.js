@@ -551,6 +551,7 @@ function scopeLabel(state) {
     if (state === 'live') return t('settings.scopeLive', 'Only live');
     if (state === 'videos-shorts') return t('settings.scopeVideosShorts', 'Videos + Shorts');
     if (state === 'videos-live') return t('settings.scopeVideosLive', 'Videos + live');
+    if (state === 'shorts-live') return t('settings.scopeShortsLive', 'Shorts + live');
     return t('settings.scopeDefault', 'Follow global');
 }
 

@@ -36,7 +36,7 @@ export function isShorts(video) {
 
 // Per-channel content scope. 'default' follows the global Shorts filter;
 // legacy chShorts values are mapped so old settings keep working.
-export const CH_SCOPE_ORDER = ['default', 'all', 'videos', 'shorts', 'live', 'videos-shorts', 'videos-live'];
+export const CH_SCOPE_ORDER = ['default', 'all', 'videos', 'shorts', 'live', 'videos-shorts', 'videos-live', 'shorts-live'];
 
 export function scopeOf(ch) {
   if (ch && CH_SCOPE_ORDER.includes(ch.chScope)) return ch.chScope;
@@ -46,10 +46,10 @@ export function scopeOf(ch) {
 }
 
 // Entry filter for a resolved scope: 'live' channels contribute no entries
-// (live is a separate event), 'shorts' contributes only Shorts.
+// (live is a separate event); 'shorts'/'shorts-live' contribute only Shorts.
 export function scopePool(scope, videos, hideShortsGlobal) {
   if (scope === 'live') return [];
-  if (scope === 'shorts') return videos.filter(isShorts);
+  if (scope === 'shorts' || scope === 'shorts-live') return videos.filter(isShorts);
   const hide = scope === 'videos' || scope === 'videos-live' || (scope === 'default' && hideShortsGlobal === true);
   return hide ? videos.filter((v) => !isShorts(v)) : videos;
 }

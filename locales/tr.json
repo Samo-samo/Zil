@@ -63,6 +63,7 @@
     "scopeLive": "Sadece canlı yayınlar",
     "scopeVideosShorts": "Video + Shorts",
     "scopeVideosLive": "Video + canlı",
+    "scopeShortsLive": "Shorts + canlı",
     "testNotif": "Test bildirimi gönder",
     "testTitle": "Zil",
     "testMsg": "Bildirimler çalışıyor.",

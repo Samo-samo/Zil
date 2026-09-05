@@ -63,6 +63,7 @@
     "scopeLive": "Only live streams",
     "scopeVideosShorts": "Videos + Shorts",
     "scopeVideosLive": "Videos + live",
+    "scopeShortsLive": "Shorts + live",
     "testNotif": "Send test notification",
     "testTitle": "Zil",
     "testMsg": "Notifications are working.",
