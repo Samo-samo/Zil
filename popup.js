@@ -103,7 +103,7 @@ await loadSettings();
 document.getElementById('testNotifBtn').addEventListener('click', async () => {
     await chrome.notifications.create(`zil-test-${Date.now()}`, {
         type: 'basic',
-        iconUrl: 'icons/bell-128.png',
+        iconUrl: 'icons/bell-notif-128.png',
         title: t('settings.testTitle', 'Zil'),
         message: t('settings.testMsg', 'Notifications are working.'),
     });

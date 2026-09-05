@@ -2,7 +2,7 @@ import { fetchChannelFeed, normalizeChannels, isShorts, fetchLiveVideoId } from 
 
 const ALARM_NAME = 'checkYouTubeRSS';
 const BADGE_COLOR = '#dc2626';
-const NOTIF_ICON = 'icons/bell-128.png';
+const NOTIF_ICON = 'icons/bell-notif-128.png';
 
 export const DEFAULT_SETTINGS = { checkIntervalMin: 15, notifyMode: 'all', skipShorts: false };
 // notifyMode: 'all' (notification + badge) | 'badge' (badge only) | 'off'
