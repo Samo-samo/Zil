@@ -194,6 +194,20 @@ async function checkNewVideos() {
         failCount: 0,
         nextRetryAt: null,
       };
+      if (feed.videos.length) {
+        // Video history for the unified homepage feed (max 5 per channel).
+        next.recent = feed.videos.slice(0, 5).map((v) => ({
+          videoId: v.videoId,
+          title: v.title,
+          published: v.published,
+          link: v.link,
+          thumb: v.thumb || '',
+        }));
+        if (!ch.lastReadAt && feed.videos[0].published) {
+          // Seed so pre-existing videos don't all light up as new.
+          next.lastReadAt = feed.videos[0].published;
+        }
+      }
       if (newest && !ch.lastVideoId) {
         // First successful read: baseline on the ACTUAL newest (even a Short)
         // without notifying, so enabling the filter later stays quiet.

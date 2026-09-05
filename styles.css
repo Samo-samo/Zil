@@ -350,6 +350,83 @@ details .content {
     margin-top: 15px;
 }
 
+.view-toggle {
+    display: flex;
+    gap: 4px;
+    margin-top: 15px;
+    padding: 3px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-card);
+}
+
+.view-btn {
+    flex: 1;
+    padding: 7px;
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-sm);
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.view-btn.active {
+    background: var(--bg-btn-hover);
+    color: var(--text-main);
+}
+
+.video-title {
+    font-size: var(--fs-sm);
+    font-weight: 700;
+    display: block;
+}
+
+.new-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #2563eb;
+    vertical-align: baseline;
+}
+
+.channel-link {
+    padding: 0;
+    margin-top: 2px;
+    color: var(--text-muted);
+    font-size: var(--fs-sm);
+    text-align: left;
+    display: block;
+}
+
+.channel-link:hover {
+    color: var(--primary);
+    text-decoration: underline;
+}
+
+.pill-row {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.pill-row .live-btn {
+    margin-bottom: 0;
+}
+
+.pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 50px;
+    font-size: var(--fs-xs);
+    font-weight: 700;
+}
+
+.pill-shorts {
+    border: 1px solid var(--border-color-hover);
+    color: var(--text-muted);
+}
+
 .channel-card {
     display: flex;
     gap: 12px;

@@ -49,7 +49,7 @@ document.getElementById('backBtnAdd').addEventListener('click', () => {
 document.getElementById('lang').addEventListener('change', async function(event) {
     const next = event.target.value;
     uiStrings = (await lang(next)) || {};
-    renderChannels();
+    renderHome();
 });
 
 const darkModeToggle = document.getElementById('darkMode');
@@ -120,7 +120,7 @@ function showBackupStatus(key, fallback, isError = false) {
 }
 
 document.getElementById('exportBtn').addEventListener('click', async () => {
-    const { channels = [], settings = {}, theme = 'light' } = await chrome.storage.local.get(['channels', 'settings', 'theme']);
+    const { channels = [], settings = {}, theme = 'light', ui = {} } = await chrome.storage.local.get(['channels', 'settings', 'theme', 'ui']);
     const backup = {
         app: 'zil',
         version: 1,
@@ -128,6 +128,7 @@ document.getElementById('exportBtn').addEventListener('click', async () => {
         channels: normalizeChannels(channels),
         settings,
         theme,
+        ui,
     };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -167,8 +168,11 @@ document.getElementById('importFile').addEventListener('change', async (event) =
             await chrome.storage.local.set({ settings: data.settings });
             await loadSettings();
         }
+        if (data && data.ui && typeof data.ui === 'object') {
+            await chrome.storage.local.set({ ui: data.ui });
+        }
         await syncBadge();
-        await renderChannels();
+        await renderHome();
         showBackupStatus('settings.importDone', 'Backup imported.');
     } catch {
         showBackupStatus('settings.importError', 'Invalid backup file.', true);
@@ -247,6 +251,14 @@ document.getElementById('saveChannelBtn').addEventListener('click', async (event
             lastPublished: shown ? shown.published : '',
             lastVideoUrl: shown ? shown.link : '',
             lastThumb: shown && shown.thumb ? shown.thumb : '',
+            recent: feed.videos.slice(0, 5).map((v) => ({
+                videoId: v.videoId,
+                title: v.title,
+                published: v.published,
+                link: v.link,
+                thumb: v.thumb || '',
+            })),
+            lastReadAt: newest && newest.published ? newest.published : new Date().toISOString(),
             unread: 0,
             lastCheck: new Date().toISOString(),
             lastOk: true,
@@ -255,7 +267,7 @@ document.getElementById('saveChannelBtn').addEventListener('click', async (event
         await chrome.storage.local.set({ channels });
         channelInput.value = '';
         switchPage('homepage');
-        await renderChannels();
+        await renderHome();
     } catch (err) {
         showAddError(err && err.message ? err.message : 'fetch');
     } finally {
@@ -287,20 +299,28 @@ document.getElementById('refreshBtn').addEventListener('click', async (event) =>
         if (elapsed < 1200) {
             await new Promise((resolve) => setTimeout(resolve, 1200 - elapsed));
         }
-        await renderChannels();
+        await renderHome();
         btn.classList.remove('spin');
     }
 });
 
-async function openVideo(channelId, url, active = true) {
+async function openVideo(channelId, videoId, published, url, active = true) {
     if (!url) return;
     await chrome.tabs.create({ url, active });
-    // Any open (foreground or background tab) marks the channel as read.
+    // Opening a video marks everything up to it as read; newer items stay new.
     const channels = await getChannels();
-    const next = channels.map((c) => (c.id === channelId ? { ...c, unread: 0 } : c));
+    const stamp = published || new Date().toISOString();
+    const next = channels.map((c) => {
+        if (c.id !== channelId) return c;
+        return {
+            ...c,
+            unread: 0,
+            lastReadAt: !c.lastReadAt || stamp > c.lastReadAt ? stamp : c.lastReadAt,
+        };
+    });
     await chrome.storage.local.set({ channels: next });
     await syncBadge();
-    await renderChannels();
+    await renderHome();
 }
 
 async function openChannel(channelId, active = true) {
@@ -346,7 +366,7 @@ async function cycleChNotify(channelId) {
     });
     await chrome.storage.local.set({ channels: next });
     await syncBadge();
-    await renderChannels();
+    await renderHome();
 }
 
 const BELL_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path>SLASH</svg>';
@@ -356,15 +376,16 @@ async function removeChannel(channelId) {
     const channels = await getChannels();
     await chrome.storage.local.set({ channels: channels.filter((c) => c.id !== channelId) });
     await syncBadge();
-    await renderChannels();
+    await renderHome();
 }
 
 async function markAllRead() {
     const channels = await getChannels();
     if (!channels.some((c) => c.unread > 0)) return;
-    await chrome.storage.local.set({ channels: channels.map((c) => ({ ...c, unread: 0 })) });
+    const now = new Date().toISOString();
+    await chrome.storage.local.set({ channels: channels.map((c) => ({ ...c, unread: 0, lastReadAt: now })) });
     await syncBadge();
-    await renderChannels();
+    await renderHome();
 }
 
 document.getElementById('markReadBtn').addEventListener('click', markAllRead);
@@ -374,7 +395,153 @@ function lastErrorText(code) {
     return `${prefix} (${code})`;
 }
 
-async function renderChannels() {
+// ---- Homepage views: unified video feed (default) vs per-channel list ----
+async function getView() {
+    const { ui = {} } = await chrome.storage.local.get(['ui']);
+    return ui.view === 'channels' ? 'channels' : 'videos';
+}
+
+async function setView(view) {
+    const { ui = {} } = await chrome.storage.local.get(['ui']);
+    await chrome.storage.local.set({ ui: { ...ui, view } });
+    await renderHome();
+}
+
+document.getElementById('viewVideosBtn').addEventListener('click', () => setView('videos'));
+document.getElementById('viewChannelsBtn').addEventListener('click', () => setView('channels'));
+
+async function renderHome() {
+    const view = await getView();
+    document.getElementById('viewVideosBtn').classList.toggle('active', view === 'videos');
+    document.getElementById('viewChannelsBtn').classList.toggle('active', view === 'channels');
+    document.getElementById('videoList').style.display = view === 'videos' ? 'flex' : 'none';
+    document.getElementById('channelList').style.display = view === 'channels' ? 'flex' : 'none';
+    if (view === 'videos') {
+        await renderVideoList();
+    } else {
+        await renderChannelList();
+    }
+}
+
+async function renderVideoList() {
+    const list = document.getElementById('videoList');
+    const empty = document.getElementById('homeEmpty');
+    const channels = await getChannels();
+    const { settings = {} } = await chrome.storage.local.get(['settings']);
+    const items = [];
+    for (const ch of channels) {
+        const recent = Array.isArray(ch.recent) ? ch.recent : [];
+        for (const v of recent) {
+            if (settings.skipShorts === true && isShorts(v)) continue;
+            items.push({
+                ...v,
+                channelId: ch.id,
+                channelName: ch.name || ch.id,
+                lastReadAt: ch.lastReadAt || '',
+                unread: ch.unread || 0,
+                liveHere: ch.isLive && ch.liveVideoId === v.videoId,
+            });
+        }
+    }
+    items.sort((a, b) => (b.published || '').localeCompare(a.published || ''));
+    const shown = items.slice(0, 25);
+    list.textContent = '';
+    empty.style.display = shown.length ? 'none' : 'block';
+    for (const item of shown) {
+        const card = document.createElement('div');
+        card.className = 'channel-card';
+        card.title = t('home.openVideo', 'Open video');
+        card.addEventListener('click', () => openVideo(item.channelId, item.videoId, item.published, item.link));
+        card.addEventListener('auxclick', (e) => {
+            if (e.button === 1) {
+                e.preventDefault();
+                openVideo(item.channelId, item.videoId, item.published, item.link, false);
+            }
+        });
+
+        if (item.thumb) {
+            const thumb = document.createElement('img');
+            thumb.className = 'thumb';
+            thumb.src = item.thumb;
+            thumb.alt = '';
+            thumb.loading = 'lazy';
+            card.appendChild(thumb);
+        } else {
+            const missing = document.createElement('div');
+            missing.className = 'thumb thumb-missing';
+            missing.textContent = t('home.noThumb', 'No thumbnail');
+            card.appendChild(missing);
+        }
+
+        const body = document.createElement('div');
+        body.className = 'grow channel-body';
+
+        // Title first, channel second (swapped vs the channel view).
+        const title = document.createElement('strong');
+        title.className = 'video-title';
+        if (item.published && item.lastReadAt && item.published > item.lastReadAt) {
+            const dot = document.createElement('span');
+            dot.className = 'new-dot';
+            dot.title = t('home.isNew', 'New');
+            title.appendChild(dot);
+            title.appendChild(document.createTextNode(' '));
+        }
+        title.appendChild(document.createTextNode(item.title || item.videoId));
+        body.appendChild(title);
+
+        const chan = document.createElement('button');
+        chan.className = 'channel-link';
+        chan.title = t('home.openChannel', 'Open channel');
+        chan.textContent = item.channelName;
+        chan.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openChannel(item.channelId);
+        });
+        chan.addEventListener('auxclick', (e) => {
+            if (e.button === 1) {
+                e.preventDefault();
+                e.stopPropagation();
+                openChannel(item.channelId, false);
+            }
+        });
+        body.appendChild(chan);
+
+        const meta = document.createElement('div');
+        meta.className = 'muted';
+        if (item.published) {
+            meta.textContent = timeAgo(item.published);
+            meta.title = new Date(item.published).toLocaleString();
+        }
+        if (meta.textContent) body.appendChild(meta);
+
+        const pills = document.createElement('div');
+        pills.className = 'pill-row';
+        let hasPill = false;
+        if (item.liveHere) {
+            const live = document.createElement('span');
+            live.className = 'live-btn';
+            const liveDot = document.createElement('span');
+            liveDot.className = 'live-dot';
+            live.appendChild(liveDot);
+            live.appendChild(document.createTextNode(t('home.live', 'LIVE')));
+            pills.appendChild(live);
+            hasPill = true;
+        }
+        if (isShorts(item)) {
+            const sh = document.createElement('span');
+            sh.className = 'pill pill-shorts';
+            sh.textContent = 'Shorts';
+            pills.appendChild(sh);
+            hasPill = true;
+        }
+        if (hasPill) body.appendChild(pills);
+
+        card.appendChild(body);
+        list.appendChild(card);
+    }
+}
+
+async function renderChannelList() {
     const list = document.getElementById('channelList');
     const empty = document.getElementById('homeEmpty');
     const channels = await getChannels();
@@ -387,11 +554,11 @@ async function renderChannels() {
         const videoUrl = ch.lastVideoUrl || '';
         const channelUrl = `https://www.youtube.com/channel/${ch.id}`;
         // Whole card opens the video; middle-click opens in a background tab.
-        card.addEventListener('click', () => openVideo(ch.id, videoUrl));
+        card.addEventListener('click', () => openVideo(ch.id, ch.lastVideoId, ch.lastPublished, videoUrl));
         card.addEventListener('auxclick', (e) => {
             if (e.button === 1) {
                 e.preventDefault();
-                openVideo(ch.id, videoUrl, false);
+                openVideo(ch.id, ch.lastVideoId, ch.lastPublished, videoUrl, false);
             }
         });
 
@@ -474,13 +641,13 @@ async function renderChannels() {
             live.title = t('home.openVideo', 'Open video');
             live.addEventListener('click', (e) => {
                 e.stopPropagation();
-                openVideo(ch.id, liveUrl);
+                openVideo(ch.id, ch.liveVideoId, new Date().toISOString(), liveUrl);
             });
             live.addEventListener('auxclick', (e) => {
                 if (e.button === 1) {
                     e.preventDefault();
                     e.stopPropagation();
-                    openVideo(ch.id, liveUrl, false);
+                    openVideo(ch.id, ch.liveVideoId, new Date().toISOString(), liveUrl, false);
                 }
             });
             body.appendChild(live);
@@ -509,8 +676,18 @@ async function renderChannels() {
 
 chrome.storage.onChanged.addListener((changes, area) => {
     if (area === 'local' && changes.channels) {
-        renderChannels();
+        renderHome();
     }
 });
 
-await renderChannels();
+await renderHome();
+
+// First run after upgrade: no video history yet — pull once silently so the
+// default video feed is not empty.
+{
+    const existing = await getChannels();
+    const hasRecent = existing.some((c) => Array.isArray(c.recent) && c.recent.length);
+    if (existing.length && !hasRecent) {
+        document.getElementById('refreshBtn').click();
+    }
+}
