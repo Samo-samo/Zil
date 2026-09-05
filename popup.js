@@ -490,6 +490,12 @@ async function markAllRead() {
 
 document.getElementById('markReadBtn').addEventListener('click', markAllRead);
 
+// Long titles are clamped to 100 chars; the full title stays in the tooltip.
+function fitTitle(s, limit = 100) {
+    const str = s || '';
+    return str.length > limit ? str.slice(0, limit).trimEnd() + '…' : str;
+}
+
 function lastErrorText(code) {
     const prefix = t('home.lastError', 'Last check failed');
     return `${prefix} (${code})`;
@@ -587,7 +593,8 @@ async function renderVideoList() {
             title.appendChild(dot);
             title.appendChild(document.createTextNode(' '));
         }
-        title.appendChild(document.createTextNode(item.title || item.videoId));
+        title.appendChild(document.createTextNode(fitTitle(item.title || item.videoId)));
+        title.title = item.title || item.videoId;
         body.appendChild(title);
 
         const chan = document.createElement('button');
@@ -828,7 +835,7 @@ async function renderChannelList() {
                     }
                     const vt = document.createElement('div');
                     vt.className = 'grow ch-video-title';
-                    vt.textContent = v.title || v.videoId;
+                    vt.textContent = fitTitle(v.title || v.videoId);
                     vt.title = v.title || v.videoId;
                     row.appendChild(vt);
                     if (v.published) {
