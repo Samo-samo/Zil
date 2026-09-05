@@ -198,8 +198,8 @@ async function checkNewVideos() {
         nextRetryAt: null,
       };
       if (feed.videos.length) {
-        // Video history for the unified homepage feed (max 5 per channel).
-        next.recent = feed.videos.slice(0, 5).map((v) => ({
+        // Video history for the unified homepage feed (max 15 per channel).
+        next.recent = feed.videos.slice(0, 15).map((v) => ({
           videoId: v.videoId,
           title: v.title,
           published: v.published,

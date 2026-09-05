@@ -6,6 +6,7 @@ const REFRESH_TIMEOUT_MS = 25000;
 
 let selectedLang = '';
 let uiStrings = {};
+let feedLimit = 25;
 
 lang(selectedLang).then((strings) => { uiStrings = strings || {}; });
 
@@ -258,7 +259,7 @@ document.getElementById('saveChannelBtn').addEventListener('click', async (event
             lastPublished: shown ? shown.published : '',
             lastVideoUrl: shown ? shown.link : '',
             lastThumb: shown && shown.thumb ? shown.thumb : '',
-            recent: feed.videos.slice(0, 5).map((v) => ({
+            recent: feed.videos.slice(0, 15).map((v) => ({
                 videoId: v.videoId,
                 title: v.title,
                 published: v.published,
@@ -314,20 +315,86 @@ document.getElementById('refreshBtn').addEventListener('click', async (event) =>
 async function openVideo(channelId, videoId, published, url, active = true) {
     if (!url) return;
     await chrome.tabs.create({ url, active });
-    // Opening a video marks everything up to it as read; newer items stay new.
+    // Per-video read state: only the opened video is marked, the rest of the
+    // channel stays unread.
     const channels = await getChannels();
-    const stamp = published || new Date().toISOString();
     const next = channels.map((c) => {
         if (c.id !== channelId) return c;
-        return {
-            ...c,
-            unread: 0,
-            lastReadAt: !c.lastReadAt || stamp > c.lastReadAt ? stamp : c.lastReadAt,
-        };
+        const readIds = Array.isArray(c.readIds) ? [...c.readIds] : [];
+        let unread = c.unread || 0;
+        if (videoId && !readIds.includes(videoId)) {
+            readIds.unshift(videoId);
+            unread = Math.max(0, unread - 1);
+        }
+        return { ...c, readIds: readIds.slice(0, 100), unread };
     });
     await chrome.storage.local.set({ channels: next });
     await syncBadge();
     await renderHome();
+}
+
+// A video counts as new when never opened and newer than the channel's
+// read watermark (seeded at first check so history doesn't all light up).
+function isNewVideo(ch, v) {
+    const readIds = Array.isArray(ch.readIds) ? ch.readIds : [];
+    if (!v || !v.videoId || readIds.includes(v.videoId)) return false;
+    if (!v.published) return true;
+    if (!ch.lastReadAt) return true;
+    return v.published > ch.lastReadAt;
+}
+
+// Middle-click autoscroll starts on mousedown — auxclick is too late to stop
+// it, so every middle-clickable element gets this first.
+function noAutoscroll(el) {
+    el.addEventListener('mousedown', (e) => {
+        if (e.button === 1) e.preventDefault();
+    });
+}
+
+let openMenuEl = null;
+
+function closeCardMenu() {
+    if (openMenuEl) {
+        openMenuEl.remove();
+        openMenuEl = null;
+    }
+}
+
+document.addEventListener('click', closeCardMenu);
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        closeCardMenu();
+        closeChannelModal();
+    }
+});
+
+function toggleCardMenu(card, channelId) {
+    const wasOpen = !!openMenuEl && openMenuEl.dataset.ch === channelId;
+    closeCardMenu();
+    if (wasOpen) return;
+    const menu = document.createElement('div');
+    menu.className = 'ctx-menu';
+    menu.dataset.ch = channelId;
+    const cust = document.createElement('button');
+    cust.className = 'ctx-item';
+    cust.textContent = t('home.customize', 'Customize');
+    cust.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeCardMenu();
+        openChannelModal(channelId);
+    });
+    const del = document.createElement('button');
+    del.className = 'ctx-item danger';
+    del.textContent = t('home.remove', 'Remove channel');
+    del.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeCardMenu();
+        removeChannel(channelId);
+    });
+    menu.appendChild(cust);
+    menu.appendChild(del);
+    card.appendChild(menu);
+    openMenuEl = menu;
 }
 
 async function openChannel(channelId, active = true) {
@@ -498,7 +565,17 @@ async function markAllRead() {
     const channels = await getChannels();
     if (!channels.some((c) => c.unread > 0)) return;
     const now = new Date().toISOString();
-    await chrome.storage.local.set({ channels: channels.map((c) => ({ ...c, unread: 0, lastReadAt: now })) });
+    await chrome.storage.local.set({
+        channels: channels.map((c) => ({
+            ...c,
+            unread: 0,
+            lastReadAt: now,
+            readIds: [...new Set([
+                ...((Array.isArray(c.recent) ? c.recent : []).map((v) => v.videoId)),
+                ...(Array.isArray(c.readIds) ? c.readIds : []),
+            ])].slice(0, 100),
+        })),
+    });
     await syncBadge();
     await renderHome();
 }
@@ -532,6 +609,7 @@ document.getElementById('viewVideosBtn').addEventListener('click', () => setView
 document.getElementById('viewChannelsBtn').addEventListener('click', () => setView('channels'));
 
 async function renderHome() {
+    closeCardMenu();
     const view = await getView();
     document.getElementById('viewVideosBtn').classList.toggle('active', view === 'videos');
     document.getElementById('viewChannelsBtn').classList.toggle('active', view === 'channels');
@@ -559,18 +637,19 @@ async function renderVideoList() {
                 channelId: ch.id,
                 channelName: ch.name || ch.id,
                 lastReadAt: ch.lastReadAt || '',
+                readIds: Array.isArray(ch.readIds) ? ch.readIds : [],
                 unread: ch.unread || 0,
                 liveHere: ch.isLive && ch.liveVideoId === v.videoId,
             });
         }
     }
     items.sort((a, b) => (b.published || '').localeCompare(a.published || ''));
-    const shown = items.slice(0, 25);
+    const shown = items.slice(0, feedLimit);
     list.textContent = '';
     empty.style.display = shown.length ? 'none' : 'block';
     for (const item of shown) {
         const card = document.createElement('div');
-        card.className = 'channel-card';
+        card.className = 'channel-card' + (isNewVideo(item, item) ? ' is-new' : '');
         card.title = t('home.openVideo', 'Open video');
         card.addEventListener('click', () => openVideo(item.channelId, item.videoId, item.published, item.link));
         card.addEventListener('auxclick', (e) => {
@@ -579,6 +658,17 @@ async function renderVideoList() {
                 openVideo(item.channelId, item.videoId, item.published, item.link, false);
             }
         });
+        noAutoscroll(card);
+
+        const more = document.createElement('button');
+        more.className = 'icon-btn small card-menu-btn';
+        more.title = t('home.more', 'More');
+        more.textContent = '⋯';
+        more.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleCardMenu(card, item.channelId);
+        });
+        card.appendChild(more);
 
         if (item.thumb) {
             const thumb = document.createElement('img');
@@ -600,13 +690,6 @@ async function renderVideoList() {
         // Title first, channel second (swapped vs the channel view).
         const title = document.createElement('strong');
         title.className = 'video-title';
-        if (item.published && item.lastReadAt && item.published > item.lastReadAt) {
-            const dot = document.createElement('span');
-            dot.className = 'new-dot';
-            dot.title = t('home.isNew', 'New');
-            title.appendChild(dot);
-            title.appendChild(document.createTextNode(' '));
-        }
         title.appendChild(document.createTextNode(fitTitle(item.title || item.videoId)));
         title.title = item.title || item.videoId;
         body.appendChild(title);
@@ -626,6 +709,7 @@ async function renderVideoList() {
                 openChannel(item.channelId, false);
             }
         });
+        noAutoscroll(chan);
         body.appendChild(chan);
 
         const meta = document.createElement('div');
@@ -660,6 +744,17 @@ async function renderVideoList() {
 
         card.appendChild(body);
         list.appendChild(card);
+    }
+
+    if (items.length > shown.length) {
+        const moreBtn = document.createElement('button');
+        moreBtn.className = 'btn secondary load-more';
+        moreBtn.textContent = `${t('home.loadMore', 'Show more')} (${items.length - shown.length})`;
+        moreBtn.addEventListener('click', () => {
+            feedLimit += 25;
+            renderHome();
+        });
+        list.appendChild(moreBtn);
     }
 }
 
@@ -840,6 +935,7 @@ async function renderChannelList() {
                             openVideo(ch.id, v.videoId, v.published, v.link, false);
                         }
                     });
+                    noAutoscroll(row);
                     if (v.thumb) {
                         const im = document.createElement('img');
                         im.className = 'ch-video-thumb';

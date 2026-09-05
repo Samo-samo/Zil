@@ -380,13 +380,55 @@ details .content {
     display: block;
 }
 
-.new-dot {
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #2563eb;
-    vertical-align: baseline;
+.channel-card.is-new {
+    background: rgba(37, 99, 235, 0.07);
+    border-color: rgba(37, 99, 235, 0.35);
+}
+
+body.dark .channel-card.is-new {
+    background: rgba(37, 99, 235, 0.14);
+}
+
+.card-menu-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+}
+
+.ctx-menu {
+    position: absolute;
+    top: 40px;
+    right: 8px;
+    z-index: 20;
+    min-width: 170px;
+    background: var(--bg-main);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    overflow: hidden;
+    animation: fadeSlideIn 0.15s ease-out;
+}
+
+.ctx-item {
+    display: block;
+    width: 100%;
+    padding: 9px 12px;
+    font-size: var(--fs-sm);
+    font-weight: 500;
+    color: var(--text-main);
+    text-align: left;
+}
+
+.ctx-item:hover {
+    background: var(--bg-btn-hover);
+}
+
+.ctx-item.danger {
+    color: var(--primary);
+}
+
+.load-more {
+    margin-top: 10px;
 }
 
 .channel-link {
@@ -428,6 +470,7 @@ details .content {
 }
 
 .channel-card {
+    position: relative;
     display: flex;
     gap: 12px;
     align-items: flex-start;
@@ -477,6 +520,7 @@ img.thumb:hover {
 
 .channel-body {
     min-width: 0;
+    padding-right: 26px;
 }
 
 .channel-name {
