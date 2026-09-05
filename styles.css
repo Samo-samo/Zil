@@ -374,6 +374,28 @@ details .content {
     object-fit: cover;
     border-radius: var(--radius-sm);
     background: var(--bg-btn);
+    transition: transform 0.18s ease;
+}
+
+/* Hover tooltip: enlarged preview of the thumbnail. */
+img.thumb:hover {
+    position: relative;
+    z-index: 10;
+    transform: scale(2.2);
+    transform-origin: left center;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.thumb-missing {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-muted);
+    border: 1px dashed var(--border-color);
+    padding: 2px;
 }
 
 .channel-body {
@@ -447,7 +469,7 @@ details .content {
 }
 
 .icon-btn.spin svg {
-    animation: spin 0.8s linear infinite;
+    animation: spin 0.6s linear infinite;
 }
 
 @keyframes spin {

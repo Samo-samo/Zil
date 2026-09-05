@@ -281,10 +281,11 @@ document.getElementById('refreshBtn').addEventListener('click', async (event) =>
     } catch {
         // Storage listener refreshes the list anyway on next successful check.
     } finally {
-        // Minimum visible spin so fast refreshes still give feedback.
+        // Minimum visible spin: 3 full turns at 0.6s so fast refreshes
+        // still give smooth feedback instead of a flicker.
         const elapsed = Date.now() - started;
-        if (elapsed < 600) {
-            await new Promise((resolve) => setTimeout(resolve, 600 - elapsed));
+        if (elapsed < 1800) {
+            await new Promise((resolve) => setTimeout(resolve, 1800 - elapsed));
         }
         await renderChannels();
         btn.classList.remove('spin');
@@ -377,6 +378,11 @@ async function renderChannels() {
             thumb.alt = '';
             thumb.loading = 'lazy';
             card.appendChild(thumb);
+        } else {
+            const missing = document.createElement('div');
+            missing.className = 'thumb thumb-missing';
+            missing.textContent = t('home.noThumb', 'No thumbnail');
+            card.appendChild(missing);
         }
 
         const body = document.createElement('div');
