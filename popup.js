@@ -107,6 +107,9 @@ document.getElementById('testNotifBtn').addEventListener('click', async () => {
         title: t('settings.testTitle', 'Zil'),
         message: t('settings.testMsg', 'Notifications are working.'),
     });
+    // The test only fires an OS notification bubble — it never touches
+    // channels or the badge, so say so explicitly.
+    showBackupStatus('settings.testDone', 'Test notification sent (badge untouched).');
 });
 
 function showBackupStatus(key, fallback, isError = false) {

@@ -99,15 +99,30 @@ async function updateBadge() {
 }
 
 async function notifyNewVideo(channel, video) {
+  const base = {
+    iconUrl: NOTIF_ICON,
+    title: channel.name || 'Zil',
+    message: video.title,
+  };
   try {
-    await chrome.notifications.create(`zil-${video.videoId}`, {
-      type: 'basic',
-      iconUrl: NOTIF_ICON,
-      title: channel.name || 'Zil',
-      message: video.title,
-    });
+    if (video.thumb) {
+      // Rich notification with the video thumbnail; falls back to basic
+      // below if the remote image is rejected.
+      await chrome.notifications.create(`zil-${video.videoId}`, {
+        ...base,
+        type: 'image',
+        imageUrl: video.thumb,
+      });
+    } else {
+      await chrome.notifications.create(`zil-${video.videoId}`, { ...base, type: 'basic' });
+    }
   } catch (err) {
-    console.warn('Zil: notification failed', err);
+    console.warn('Zil: rich notification failed, retrying basic', err);
+    try {
+      await chrome.notifications.create(`zil-${video.videoId}`, { ...base, type: 'basic' });
+    } catch (err2) {
+      console.warn('Zil: notification failed', err2);
+    }
   }
 }
 

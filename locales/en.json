@@ -37,6 +37,7 @@
     "testNotif": "Send test notification",
     "testTitle": "Zil",
     "testMsg": "Notifications are working.",
+    "testDone": "Test notification sent (badge untouched).",
     "export": "Export backup",
     "import": "Import backup",
     "exportDone": "Backup exported.",

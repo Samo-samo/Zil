@@ -37,6 +37,7 @@
     "testNotif": "Test bildirimi gönder",
     "testTitle": "Zil",
     "testMsg": "Bildirimler çalışıyor.",
+    "testDone": "Test bildirimi gönderildi (rozete dokunulmadı).",
     "export": "Yedeği dışa aktar",
     "import": "Yedeği içe aktar",
     "exportDone": "Yedek dışa aktarıldı.",
