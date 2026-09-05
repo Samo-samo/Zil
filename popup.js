@@ -1,5 +1,5 @@
 import { lang } from './modules/localizator.js';
-import { resolveChannelId, fetchChannelFeed, normalizeChannels, isShorts } from './modules/parser.js';
+import { resolveChannelId, fetchChannelFeed, normalizeChannels, isShorts, fetchChannelAvatar } from './modules/parser.js';
 
 const DEFAULT_SETTINGS = { checkIntervalMin: 15, notifyMode: 'all', skipShorts: false };
 const REFRESH_TIMEOUT_MS = 25000;
@@ -243,9 +243,18 @@ document.getElementById('saveChannelBtn').addEventListener('click', async (event
             : feed.videos;
         const newest = feed.videos[0];
         const shown = pool[0] || newest;
+        let avatar = '';
+        try {
+            avatar = await fetchChannelAvatar(channelId);
+        } catch {
+            avatar = '';
+        }
+        const nowIso = new Date().toISOString();
         channels.push({
             id: channelId,
             name: feed.channelTitle || channelId,
+            avatar,
+            addedAt: nowIso,
             lastVideoId: newest ? newest.videoId : '',
             lastVideoTitle: shown ? shown.title : '',
             lastPublished: shown ? shown.published : '',

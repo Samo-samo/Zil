@@ -34,15 +34,64 @@ export function isShorts(video) {
   return !!video && typeof video.link === 'string' && video.link.includes('/shorts/');
 }
 
-// Live detection: /channel/ID/live redirects to a watch URL while the channel
-// is live, and stays on a channel/consent page otherwise. Best effort —
-// callers must catch (network errors throw) and treat null as "unknown".
+// Live detection, two strategies (returns { liveId, via, debug }):
+//  1. /channel/ID/live redirects to a watch URL while live.
+//  2. The embed player page contains a videoId only while live — verified
+//     against a real offline embed page (no video identifiers at all there).
+// Best effort — network errors throw, callers must catch and treat null as
+// "unknown". Consent/bot pages surface as via 'consent'/'offline'.
 export async function fetchLiveVideoId(channelId, fetchFn = fetch) {
-  const res = await timedFetch(`https://www.youtube.com/channel/${channelId}/live`, {}, fetchFn);
-  if (!res.ok) return null;
-  const url = res.url || '';
-  const m = url.match(/[?&]v=([A-Za-z0-9_-]{11})/);
-  return m ? m[1] : null;
+  try {
+    const res = await timedFetch(`https://www.youtube.com/channel/${channelId}/live`, {}, fetchFn);
+    if (res.ok) {
+      const url = res.url || '';
+      if (/consent\.youtube\.com|accounts\.google\.com/.test(url)) {
+        return { liveId: null, via: 'consent', debug: url.slice(0, 80) };
+      }
+      const m = url.match(/[?&]v=([A-Za-z0-9_-]{11})/);
+      if (m) return { liveId: m[1], via: 'redirect', debug: '' };
+    }
+  } catch {
+    // Fall through to the embed strategy.
+  }
+  try {
+    const res2 = await timedFetch(
+      `https://www.youtube.com/embed/live_stream?channel=${channelId}`,
+      { headers: { 'Accept-Language': 'en' } },
+      fetchFn
+    );
+    if (res2.ok) {
+      const html = await res2.text();
+      const vid = html.match(/"videoId":"([A-Za-z0-9_-]{11})"/);
+      if (vid) return { liveId: vid[1], via: 'embed', debug: '' };
+      return { liveId: null, via: 'offline', debug: '' };
+    }
+    return { liveId: null, via: `embed-http`, debug: String(res2.status) };
+  } catch {
+    return { liveId: null, via: 'network', debug: '' };
+  }
+}
+
+// Channel avatar: first author thumbnail on the channel page. Returns '' when
+// the page is a consent/bot shell or the layout changed — callers show an
+// initial-letter placeholder instead.
+export async function fetchChannelAvatar(channelId, fetchFn = fetch) {
+  const pages = [
+    `https://www.youtube.com/channel/${channelId}`,
+    `https://www.youtube.com/channel/${channelId}/videos`,
+  ];
+  for (const pageUrl of pages) {
+    try {
+      const res = await timedFetch(pageUrl, { headers: { 'Accept-Language': 'en' } }, fetchFn);
+      if (!res.ok) continue;
+      const html = await res.text();
+      const m = html.match(/"avatar":\s*\{"thumbnails":\[\{"url":"(https:[^"]+)"/);
+      if (m) return m[1].replace(/\\\//g, '/').replace(/\\u0026/g, '&');
+    } catch {
+      continue;
+    }
+  }
+  return '';
 }
 
 function pick(text, re) {

@@ -1,4 +1,4 @@
-import { fetchChannelFeed, normalizeChannels, isShorts, fetchLiveVideoId } from './modules/parser.js';
+import { fetchChannelFeed, normalizeChannels, isShorts, fetchLiveVideoId, fetchChannelAvatar } from './modules/parser.js';
 
 const ALARM_NAME = 'checkYouTubeRSS';
 const BADGE_COLOR = '#dc2626';
@@ -240,11 +240,25 @@ async function checkNewVideos() {
         next.lastVideoUrl = latest.link;
         next.lastThumb = latest.thumb || ch.lastThumb || '';
       }
+      // Channel avatar: fetch once, keep forever (cheap, rarely changes).
+      if (!ch.avatar) {
+        try {
+          const av = await fetchChannelAvatar(ch.id);
+          if (av) next.avatar = av;
+        } catch {
+          // Placeholder stays.
+        }
+      }
       // Live detection: best effort, never fatal to the whole check.
+      // Dual strategy inside fetchLiveVideoId; result diagnostics are stored
+      // so the popup can show why a live stream was (not) seen.
       try {
-        const liveId = await fetchLiveVideoId(ch.id);
+        const live = await fetchLiveVideoId(ch.id);
+        const liveId = live && live.liveId ? live.liveId : null;
         next.isLive = !!liveId;
-        next.liveVideoId = liveId || null;
+        next.liveVideoId = liveId;
+        next.liveVia = live ? live.via : 'none';
+        next.liveCheckedAt = now;
         if (liveId && ch.lastNotifiedLiveId !== liveId) {
           next.lastNotifiedLiveId = liveId;
           const effLive = effectiveMode(ch, notifyMode);
