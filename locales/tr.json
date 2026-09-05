@@ -10,6 +10,7 @@
     "openChannel": "Kanalı aç",
     "noThumb": "Küçük resim yok",
     "live": "CANLI",
+    "chNotify": "Kanal bildirimleri",
     "lastError": "Son kontrol başarısız"
   },
   
@@ -36,6 +37,7 @@
       "badge": "Sadece rozet",
       "off": "Kapalı"
     },
+    "chDefault": "Genel ayarı kullan",
     "testNotif": "Test bildirimi gönder",
     "testTitle": "Zil",
     "testMsg": "Bildirimler çalışıyor.",

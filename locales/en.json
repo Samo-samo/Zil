@@ -10,6 +10,7 @@
     "openChannel": "Open channel",
     "noThumb": "No thumbnail",
     "live": "LIVE",
+    "chNotify": "Channel notifications",
     "lastError": "Last check failed"
   },
   
@@ -36,6 +37,7 @@
       "badge": "Badge only",
       "off": "Off"
     },
+    "chDefault": "Follow global setting",
     "testNotif": "Send test notification",
     "testTitle": "Zil",
     "testMsg": "Notifications are working.",

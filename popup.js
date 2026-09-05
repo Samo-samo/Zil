@@ -328,6 +328,30 @@ function timeAgo(iso) {
     return '';
 }
 
+const CH_NOTIFY_ORDER = ['default', 'all', 'badge', 'off'];
+
+function chNotifyLabel(state) {
+    if (state === 'all') return t('settings.mode.all', 'Notification + badge');
+    if (state === 'badge') return t('settings.mode.badge', 'Badge only');
+    if (state === 'off') return t('settings.mode.off', 'Off');
+    return t('settings.chDefault', 'Follow global setting');
+}
+
+async function cycleChNotify(channelId) {
+    const channels = await getChannels();
+    const next = channels.map((c) => {
+        if (c.id !== channelId) return c;
+        const cur = CH_NOTIFY_ORDER.includes(c.chNotify) ? c.chNotify : 'default';
+        return { ...c, chNotify: CH_NOTIFY_ORDER[(CH_NOTIFY_ORDER.indexOf(cur) + 1) % CH_NOTIFY_ORDER.length] };
+    });
+    await chrome.storage.local.set({ channels: next });
+    await syncBadge();
+    await renderChannels();
+}
+
+const BELL_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path>SLASH</svg>';
+const BELL_SLASH = '<line x1="2" y1="2" x2="22" y2="22"></line>';
+
 async function removeChannel(channelId) {
     const channels = await getChannels();
     await chrome.storage.local.set({ channels: channels.filter((c) => c.id !== channelId) });
@@ -413,6 +437,16 @@ async function renderChannels() {
             name.appendChild(document.createTextNode(' '));
             name.appendChild(dot);
         }
+        const bell = document.createElement('button');
+        bell.className = 'icon-btn small';
+        const chState = CH_NOTIFY_ORDER.includes(ch.chNotify) ? ch.chNotify : 'default';
+        bell.title = `${t('home.chNotify', 'Channel notifications')}: ${chNotifyLabel(chState)}`;
+        bell.innerHTML = BELL_SVG.replace('SLASH', chState === 'off' ? BELL_SLASH : '');
+        bell.classList.toggle('dimmed', chState === 'off' || chState === 'badge');
+        bell.addEventListener('click', (e) => {
+            e.stopPropagation();
+            cycleChNotify(ch.id);
+        });
         const del = document.createElement('button');
         del.className = 'icon-btn small';
         del.title = t('home.remove', 'Remove channel');
@@ -422,6 +456,7 @@ async function renderChannels() {
             removeChannel(ch.id);
         });
         top.appendChild(name);
+        top.appendChild(bell);
         top.appendChild(del);
 
         const latest = document.createElement('div');
