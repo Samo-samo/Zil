@@ -591,6 +591,239 @@ button.btn.secondary:hover {
     color: var(--primary);
 }
 
+/* --- Channel cards (redesigned): avatar header + expandable detail --- */
+.ch-card {
+    display: block;
+    cursor: default;
+}
+
+.ch-main {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+}
+
+.avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    background: var(--bg-btn);
+}
+
+.avatar-ph {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: var(--fs-lg);
+    color: var(--text-muted);
+}
+
+.ch-head {
+    min-width: 0;
+}
+
+.live-mini {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 50px;
+    background: var(--primary);
+    color: #fff;
+    font-size: var(--fs-xs);
+    font-weight: 700;
+    vertical-align: middle;
+}
+
+.ch-arrow svg {
+    transition: transform 0.2s ease;
+}
+
+.ch-arrow.open svg {
+    transform: rotate(90deg);
+}
+
+.ch-detail {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-color);
+}
+
+.kv {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    padding: 3px 0;
+    font-size: var(--fs-sm);
+}
+
+.kv-val {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: right;
+}
+
+.kv-val.linklike {
+    color: var(--text-muted);
+}
+
+.kv-val.linklike:hover {
+    color: var(--primary);
+    text-decoration: underline;
+}
+
+.ch-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.mini-btn {
+    flex: 1;
+    padding: 7px 4px;
+    border-radius: var(--radius-sm);
+    background: var(--bg-btn);
+    color: var(--text-main);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    border: 1px solid var(--border-color);
+}
+
+.mini-btn:hover {
+    background: var(--bg-btn-hover);
+}
+
+.mini-btn.danger {
+    color: var(--primary);
+}
+
+.vids-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    margin-top: 10px;
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    background: var(--bg-btn);
+    color: var(--text-main);
+    font-size: var(--fs-sm);
+    font-weight: 600;
+}
+
+.vids-toggle:hover {
+    background: var(--bg-btn-hover);
+}
+
+.vids-chev {
+    display: inline-flex;
+}
+
+.vids-chev svg {
+    width: 14px;
+    height: 14px;
+    color: var(--text-muted);
+    transition: transform 0.2s ease;
+}
+
+.vids-toggle.open .vids-chev svg {
+    transform: rotate(90deg);
+}
+
+.ch-videos {
+    margin-top: 6px;
+}
+
+.ch-video-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 4px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+
+.ch-video-row:hover {
+    background: var(--bg-btn);
+}
+
+.ch-video-thumb {
+    width: 64px;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    border-radius: var(--radius-sm);
+    flex-shrink: 0;
+    background: var(--bg-btn);
+}
+
+.ch-video-title {
+    font-size: var(--fs-sm);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.muted.small {
+    font-size: var(--fs-xs);
+    flex-shrink: 0;
+}
+
+/* --- Modal --- */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.45);
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.modal-overlay[hidden] {
+    display: none;
+}
+
+.modal-box {
+    width: 100%;
+    max-height: 100%;
+    overflow-y: auto;
+    background: var(--bg-main);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    box-sizing: border-box;
+    animation: fadeSlideIn 0.2s ease-out;
+}
+
+.section-label {
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+}
+
+.radio-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    font-size: var(--fs-sm);
+    cursor: pointer;
+}
+
+.radio-row input {
+    accent-color: var(--primary);
+}
+
 .live-btn {
     display: inline-flex;
     align-items: center;

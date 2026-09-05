@@ -366,20 +366,103 @@ function chNotifyLabel(state) {
     return t('settings.chDefault', 'Follow global setting');
 }
 
-async function cycleChNotify(channelId) {
-    const channels = await getChannels();
-    const next = channels.map((c) => {
-        if (c.id !== channelId) return c;
-        const cur = CH_NOTIFY_ORDER.includes(c.chNotify) ? c.chNotify : 'default';
-        return { ...c, chNotify: CH_NOTIFY_ORDER[(CH_NOTIFY_ORDER.indexOf(cur) + 1) % CH_NOTIFY_ORDER.length] };
-    });
-    await chrome.storage.local.set({ channels: next });
-    await syncBadge();
-    await renderHome();
+const GEAR_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>';
+const CHEV_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>';
+
+// Expanded/collapsed state lives in memory (default: collapsed).
+const expandedChannels = new Set();
+const expandedVideos = new Set();
+
+function copyText(text, btn, doneLabel) {
+    const done = () => {
+        const old = btn.textContent;
+        btn.textContent = doneLabel;
+        setTimeout(() => { btn.textContent = old; }, 1200);
+    };
+    if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, done);
+    } else {
+        done();
+    }
 }
 
-const BELL_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path>SLASH</svg>';
-const BELL_SLASH = '<line x1="2" y1="2" x2="22" y2="22"></line>';
+function detailRow(label, valueText, opts = {}) {
+    const row = document.createElement('div');
+    row.className = 'kv';
+    const k = document.createElement('span');
+    k.className = 'muted';
+    k.textContent = label;
+    row.appendChild(k);
+    const v = opts.button ? document.createElement('button') : document.createElement('span');
+    v.className = opts.button ? 'kv-val linklike' : 'kv-val';
+    v.textContent = valueText;
+    if (opts.title) v.title = opts.title;
+    if (opts.onClick) v.addEventListener('click', opts.onClick);
+    row.appendChild(v);
+    return row;
+}
+
+function radioRow(group, value, label, checked, onPick) {
+    const lab = document.createElement('label');
+    lab.className = 'radio-row';
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = group;
+    input.checked = checked;
+    input.addEventListener('change', () => onPick(value));
+    lab.appendChild(input);
+    lab.appendChild(document.createTextNode(label));
+    return lab;
+}
+
+function closeChannelModal() {
+    document.getElementById('modalOverlay').hidden = true;
+}
+
+async function openChannelModal(channelId) {
+    const channels = await getChannels();
+    const ch = channels.find((c) => c.id === channelId);
+    if (!ch) return;
+    document.getElementById('modalTitle').textContent = ch.name || ch.id;
+    document.getElementById('modalClose').title = t('home.close', 'Close');
+    const body = document.getElementById('modalBody');
+    body.textContent = '';
+
+    const notifLabel = document.createElement('div');
+    notifLabel.className = 'section-label';
+    notifLabel.textContent = t('home.chNotify', 'Channel notifications');
+    body.appendChild(notifLabel);
+    const nState = CH_NOTIFY_ORDER.includes(ch.chNotify) ? ch.chNotify : 'default';
+    for (const opt of CH_NOTIFY_ORDER) {
+        body.appendChild(radioRow(`chNotify-${ch.id}`, opt, chNotifyLabel(opt), opt === nState, async (v) => {
+            const all = await getChannels();
+            await chrome.storage.local.set({ channels: all.map((c) => (c.id === ch.id ? { ...c, chNotify: v } : c)) });
+            await syncBadge();
+            await renderHome();
+        }));
+    }
+
+    const shLabel = document.createElement('div');
+    shLabel.className = 'section-label';
+    shLabel.style.marginTop = '12px';
+    shLabel.textContent = t('home.chShorts', 'Channel Shorts filter');
+    body.appendChild(shLabel);
+    const sState = CH_SHORTS_ORDER.includes(ch.chShorts) ? ch.chShorts : 'default';
+    for (const opt of CH_SHORTS_ORDER) {
+        body.appendChild(radioRow(`chShorts-${ch.id}`, opt, chShortsLabel(opt), opt === sState, async (v) => {
+            const all = await getChannels();
+            await chrome.storage.local.set({ channels: all.map((c) => (c.id === ch.id ? { ...c, chShorts: v } : c)) });
+            await renderHome();
+        }));
+    }
+
+    document.getElementById('modalOverlay').hidden = false;
+}
+
+document.getElementById('modalClose').addEventListener('click', closeChannelModal);
+document.getElementById('modalOverlay').addEventListener('click', (e) => {
+    if (e.target.id === 'modalOverlay') closeChannelModal();
+});
 
 const CH_SHORTS_ORDER = ['default', 'hide', 'show'];
 
@@ -388,19 +471,6 @@ function chShortsLabel(state) {
     if (state === 'show') return t('settings.chShortsShow', 'Show Shorts');
     return t('settings.chShortsDefault', 'Follow global');
 }
-
-async function cycleChShorts(channelId) {
-    const channels = await getChannels();
-    const next = channels.map((c) => {
-        if (c.id !== channelId) return c;
-        const cur = CH_SHORTS_ORDER.includes(c.chShorts) ? c.chShorts : 'default';
-        return { ...c, chShorts: CH_SHORTS_ORDER[(CH_SHORTS_ORDER.indexOf(cur) + 1) % CH_SHORTS_ORDER.length] };
-    });
-    await chrome.storage.local.set({ channels: next });
-    await renderHome();
-}
-
-const SHORTS_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"></rect><polygon points="10 9 15 12 10 15 10 9"></polygon>SLASH</svg>';
 
 async function removeChannel(channelId) {
     const channels = await getChannels();
@@ -580,53 +650,38 @@ async function renderChannelList() {
     empty.style.display = channels.length ? 'none' : 'block';
     for (const ch of channels) {
         const card = document.createElement('div');
-        card.className = 'channel-card';
-        card.title = t('home.openVideo', 'Open video');
-        const videoUrl = ch.lastVideoUrl || '';
-        const channelUrl = `https://www.youtube.com/channel/${ch.id}`;
-        // Whole card opens the video; middle-click opens in a background tab.
-        card.addEventListener('click', () => openVideo(ch.id, ch.lastVideoId, ch.lastPublished, videoUrl));
-        card.addEventListener('auxclick', (e) => {
-            if (e.button === 1) {
-                e.preventDefault();
-                openVideo(ch.id, ch.lastVideoId, ch.lastPublished, videoUrl, false);
-            }
+        card.className = 'channel-card ch-card';
+        const isOpen = expandedChannels.has(ch.id);
+
+        // --- Header: avatar + name + customize + expand arrow ---
+        const main = document.createElement('div');
+        main.className = 'ch-main';
+        main.title = isOpen ? t('home.collapse', 'Collapse') : t('home.expand', 'Expand');
+        main.addEventListener('click', () => {
+            if (expandedChannels.has(ch.id)) expandedChannels.delete(ch.id);
+            else expandedChannels.add(ch.id);
+            renderHome();
         });
 
-        if (ch.lastThumb) {
-            const thumb = document.createElement('img');
-            thumb.className = 'thumb';
-            thumb.src = ch.lastThumb;
-            thumb.alt = '';
-            thumb.loading = 'lazy';
-            card.appendChild(thumb);
+        if (ch.avatar) {
+            const av = document.createElement('img');
+            av.className = 'avatar';
+            av.src = ch.avatar;
+            av.alt = '';
+            av.loading = 'lazy';
+            main.appendChild(av);
         } else {
-            const missing = document.createElement('div');
-            missing.className = 'thumb thumb-missing';
-            missing.textContent = t('home.noThumb', 'No thumbnail');
-            card.appendChild(missing);
+            const ph = document.createElement('div');
+            ph.className = 'avatar avatar-ph';
+            ph.textContent = (ch.name || ch.id || '?').trim().charAt(0).toUpperCase();
+            main.appendChild(ph);
         }
 
-        const body = document.createElement('div');
-        body.className = 'grow channel-body';
-
-        const top = document.createElement('div');
-        top.className = 'flex card-top';
-        const name = document.createElement('button');
-        name.className = 'channel-name grow';
-        name.title = t('home.openChannel', 'Open channel');
+        const headText = document.createElement('div');
+        headText.className = 'grow ch-head';
+        const name = document.createElement('strong');
+        name.className = 'channel-name';
         name.textContent = ch.name || ch.id;
-        name.addEventListener('click', (e) => {
-            e.stopPropagation();
-            openChannel(ch.id);
-        });
-        name.addEventListener('auxclick', (e) => {
-            if (e.button === 1) {
-                e.preventDefault();
-                e.stopPropagation();
-                openChannel(ch.id, false);
-            }
-        });
         if (ch.unread > 0) {
             const dot = document.createElement('span');
             dot.className = 'unread-dot';
@@ -635,83 +690,161 @@ async function renderChannelList() {
             name.appendChild(document.createTextNode(' '));
             name.appendChild(dot);
         }
-        const bell = document.createElement('button');
-        bell.className = 'icon-btn small';
-        const chState = CH_NOTIFY_ORDER.includes(ch.chNotify) ? ch.chNotify : 'default';
-        bell.title = `${t('home.chNotify', 'Channel notifications')}: ${chNotifyLabel(chState)}`;
-        bell.innerHTML = BELL_SVG.replace('SLASH', chState === 'off' ? BELL_SLASH : '');
-        bell.classList.toggle('dimmed', chState === 'off' || chState === 'badge');
-        bell.addEventListener('click', (e) => {
-            e.stopPropagation();
-            cycleChNotify(ch.id);
-        });
-        const shortsBtn = document.createElement('button');
-        shortsBtn.className = 'icon-btn small';
-        const shState = CH_SHORTS_ORDER.includes(ch.chShorts) ? ch.chShorts : 'default';
-        shortsBtn.title = `${t('home.chShorts', 'Channel Shorts filter')}: ${chShortsLabel(shState)}`;
-        shortsBtn.innerHTML = SHORTS_SVG.replace('SLASH', shState === 'hide' ? BELL_SLASH : '');
-        shortsBtn.classList.toggle('dimmed', shState === 'hide');
-        shortsBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            cycleChShorts(ch.id);
-        });
-        const del = document.createElement('button');
-        del.className = 'icon-btn small';
-        del.title = t('home.remove', 'Remove channel');
-        del.textContent = '×';
-        del.addEventListener('click', (e) => {
-            e.stopPropagation();
-            removeChannel(ch.id);
-        });
-        top.appendChild(name);
-        top.appendChild(bell);
-        top.appendChild(shortsBtn);
-        top.appendChild(del);
-
-        const latest = document.createElement('div');
-        latest.className = 'latest-title';
-        latest.textContent = ch.lastVideoTitle || ch.id;
-
+        headText.appendChild(name);
         if (ch.isLive && ch.liveVideoId) {
-            const liveUrl = `https://www.youtube.com/watch?v=${ch.liveVideoId}`;
-            const live = document.createElement('button');
-            live.className = 'live-btn';
-            const liveDot = document.createElement('span');
-            liveDot.className = 'live-dot';
-            live.appendChild(liveDot);
-            live.appendChild(document.createTextNode(t('home.live', 'LIVE')));
-            live.title = t('home.openVideo', 'Open video');
-            live.addEventListener('click', (e) => {
-                e.stopPropagation();
-                openVideo(ch.id, ch.liveVideoId, new Date().toISOString(), liveUrl);
+            const lm = document.createElement('span');
+            lm.className = 'live-mini';
+            lm.textContent = t('home.live', 'LIVE');
+            headText.appendChild(document.createTextNode(' '));
+            headText.appendChild(lm);
+        }
+        main.appendChild(headText);
+
+        const gear = document.createElement('button');
+        gear.className = 'icon-btn small';
+        gear.title = t('home.customize', 'Customize');
+        gear.innerHTML = GEAR_SVG;
+        gear.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openChannelModal(ch.id);
+        });
+        main.appendChild(gear);
+
+        const arrow = document.createElement('button');
+        arrow.className = 'icon-btn small ch-arrow' + (isOpen ? ' open' : '');
+        arrow.title = main.title;
+        arrow.innerHTML = CHEV_SVG;
+        arrow.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (expandedChannels.has(ch.id)) expandedChannels.delete(ch.id);
+            else expandedChannels.add(ch.id);
+            renderHome();
+        });
+        main.appendChild(arrow);
+        card.appendChild(main);
+
+        if (isOpen) {
+            const detail = document.createElement('div');
+            detail.className = 'ch-detail';
+
+            detail.appendChild(detailRow(t('home.copyId', 'Copy channel ID'), ch.id, {
+                button: true,
+                title: ch.id,
+                onClick: (e) => copyText(ch.id, e.currentTarget, t('home.copied', 'Copied')),
+            }));
+
+            if (ch.addedAt) {
+                const addedDate = new Date(ch.addedAt);
+                detail.appendChild(detailRow(
+                    t('home.added', 'Added'),
+                    addedDate.toLocaleDateString(),
+                    { title: addedDate.toLocaleString() }
+                ));
+            }
+
+            if (ch.lastCheck) {
+                let checkText = timeAgo(ch.lastCheck);
+                if (ch.lastOk === false && ch.lastError) checkText += ` (${ch.lastError})`;
+                detail.appendChild(detailRow(t('home.lastCheck', 'Last check'), checkText || '—'));
+            }
+
+            const liveRow = document.createElement('div');
+            liveRow.className = 'kv';
+            const liveK = document.createElement('span');
+            liveK.className = 'muted';
+            liveK.textContent = t('home.liveCheck', 'Live check');
+            const liveV = document.createElement('span');
+            liveV.className = 'kv-val';
+            if (ch.isLive && ch.liveVideoId) {
+                const pill = document.createElement('span');
+                pill.className = 'live-mini';
+                pill.textContent = t('home.live', 'LIVE');
+                liveV.appendChild(pill);
+            } else if (ch.liveCheckedAt) {
+                liveV.textContent = `${t('home.liveOff', 'Not live')} (${ch.liveVia || '?'})`;
+            } else {
+                liveV.textContent = t('home.liveUnknown', 'Unknown');
+            }
+            liveRow.appendChild(liveK);
+            liveRow.appendChild(liveV);
+            detail.appendChild(liveRow);
+
+            const actions = document.createElement('div');
+            actions.className = 'ch-actions';
+            const openBtn = document.createElement('button');
+            openBtn.className = 'mini-btn';
+            openBtn.textContent = t('home.openChannel', 'Open channel');
+            openBtn.addEventListener('click', () => openChannel(ch.id));
+            const custBtn = document.createElement('button');
+            custBtn.className = 'mini-btn';
+            custBtn.textContent = t('home.customize', 'Customize');
+            custBtn.addEventListener('click', () => openChannelModal(ch.id));
+            const delBtn = document.createElement('button');
+            delBtn.className = 'mini-btn danger';
+            delBtn.textContent = t('home.remove', 'Remove channel');
+            delBtn.addEventListener('click', () => removeChannel(ch.id));
+            actions.appendChild(openBtn);
+            actions.appendChild(custBtn);
+            actions.appendChild(delBtn);
+            detail.appendChild(actions);
+
+            const recent = Array.isArray(ch.recent) ? ch.recent : [];
+            const vidsOpen = expandedVideos.has(ch.id);
+            const vidsToggle = document.createElement('button');
+            vidsToggle.className = 'vids-toggle' + (vidsOpen ? ' open' : '');
+            const vidsChev = document.createElement('span');
+            vidsChev.className = 'vids-chev';
+            vidsChev.innerHTML = CHEV_SVG;
+            vidsToggle.appendChild(vidsChev);
+            vidsToggle.appendChild(document.createTextNode(`${t('home.videos', 'Videos')} (${recent.length})`));
+            vidsToggle.addEventListener('click', () => {
+                if (expandedVideos.has(ch.id)) expandedVideos.delete(ch.id);
+                else expandedVideos.add(ch.id);
+                renderHome();
             });
-            live.addEventListener('auxclick', (e) => {
-                if (e.button === 1) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    openVideo(ch.id, ch.liveVideoId, new Date().toISOString(), liveUrl, false);
+            detail.appendChild(vidsToggle);
+
+            if (vidsOpen) {
+                const vids = document.createElement('div');
+                vids.className = 'ch-videos';
+                for (const v of recent) {
+                    const row = document.createElement('div');
+                    row.className = 'ch-video-row';
+                    row.title = t('home.openVideo', 'Open video');
+                    row.addEventListener('click', () => openVideo(ch.id, v.videoId, v.published, v.link));
+                    row.addEventListener('auxclick', (e) => {
+                        if (e.button === 1) {
+                            e.preventDefault();
+                            openVideo(ch.id, v.videoId, v.published, v.link, false);
+                        }
+                    });
+                    if (v.thumb) {
+                        const im = document.createElement('img');
+                        im.className = 'ch-video-thumb';
+                        im.src = v.thumb;
+                        im.alt = '';
+                        im.loading = 'lazy';
+                        row.appendChild(im);
+                    }
+                    const vt = document.createElement('div');
+                    vt.className = 'grow ch-video-title';
+                    vt.textContent = v.title || v.videoId;
+                    vt.title = v.title || v.videoId;
+                    row.appendChild(vt);
+                    if (v.published) {
+                        const tm = document.createElement('div');
+                        tm.className = 'muted small';
+                        tm.textContent = timeAgo(v.published);
+                        row.appendChild(tm);
+                    }
+                    vids.appendChild(row);
                 }
-            });
-            body.appendChild(live);
-        }
-        body.appendChild(top);
-        body.appendChild(latest);
-        const meta = document.createElement('div');
-        meta.className = 'muted';
-        if (ch.lastPublished) {
-            meta.textContent = timeAgo(ch.lastPublished);
-            meta.title = new Date(ch.lastPublished).toLocaleString();
-        }
-        if (meta.textContent) body.appendChild(meta);
+                detail.appendChild(vids);
+            }
 
-        if (ch.lastOk === false && ch.lastError) {
-            const err = document.createElement('div');
-            err.className = 'muted error-line';
-            err.textContent = lastErrorText(ch.lastError);
-            body.appendChild(err);
+            card.appendChild(detail);
         }
 
-        card.appendChild(body);
         list.appendChild(card);
     }
 }
