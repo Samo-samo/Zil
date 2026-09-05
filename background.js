@@ -127,7 +127,7 @@ async function notifyNewVideo(channel, video) {
 }
 
 async function checkNewVideos() {
-  const { notifyMode, skipShorts } = await getSettings();
+  const { notifyMode, skipShorts, checkIntervalMin } = await getSettings();
   const channels = await getChannels();
   if (!channels.length) {
     await updateBadge();
@@ -135,9 +135,17 @@ async function checkNewVideos() {
   }
 
   let newVideos = 0;
+  let skipped = 0;
   const now = new Date().toISOString();
+  const nowMs = Date.now();
   const updated = [];
   for (const ch of channels) {
+    // Error backoff: repeatedly failing channels are checked less often.
+    if (ch.nextRetryAt && nowMs < new Date(ch.nextRetryAt).getTime()) {
+      skipped += 1;
+      updated.push(ch);
+      continue;
+    }
     try {
       const feed = await fetchChannelFeed(ch.id);
       const newest = feed.videos[0];
@@ -152,6 +160,8 @@ async function checkNewVideos() {
         lastCheck: now,
         lastOk: true,
         lastError: null,
+        failCount: 0,
+        nextRetryAt: null,
       };
       if (newest && !ch.lastVideoId) {
         // First successful read: baseline on the ACTUAL newest (even a Short)
@@ -184,11 +194,22 @@ async function checkNewVideos() {
     } catch (err) {
       const code = String((err && err.message) || err);
       console.warn(`Zil: check failed for ${ch.id} (${code})`);
-      updated.push({ ...ch, lastCheck: now, lastOk: false, lastError: code });
+      // Exponential backoff: 15, 30, 60, 120 … capped at 480 min, and never
+      // more often than the configured check interval.
+      const failCount = (ch.failCount || 0) + 1;
+      const delayMin = Math.min(Math.max(15 * 2 ** (failCount - 1), checkIntervalMin), 480);
+      updated.push({
+        ...ch,
+        lastCheck: now,
+        lastOk: false,
+        lastError: code,
+        failCount,
+        nextRetryAt: new Date(nowMs + delayMin * 60000).toISOString(),
+      });
     }
   }
 
   await chrome.storage.local.set({ channels: updated });
   await updateBadge();
-  return { ok: true, checked: channels.length, newVideos };
+  return { ok: true, checked: channels.length - skipped, newVideos, skipped };
 }
