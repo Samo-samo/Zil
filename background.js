@@ -1,4 +1,4 @@
-import { fetchChannelFeed, normalizeChannels, isShorts } from './modules/parser.js';
+import { fetchChannelFeed, normalizeChannels, isShorts, fetchLiveVideoId } from './modules/parser.js';
 
 const ALARM_NAME = 'checkYouTubeRSS';
 const BADGE_COLOR = '#dc2626';
@@ -64,7 +64,11 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 chrome.notifications.onClicked.addListener((notifId) => {
-  if (notifId.startsWith('zil-')) {
+  if (notifId.startsWith('zil-live-')) {
+    const videoId = notifId.slice(9);
+    chrome.tabs.create({ url: `https://www.youtube.com/watch?v=${videoId}` });
+    chrome.notifications.clear(notifId);
+  } else if (notifId.startsWith('zil-')) {
     const videoId = notifId.slice(4);
     chrome.tabs.create({ url: `https://www.youtube.com/watch?v=${videoId}` });
     chrome.notifications.clear(notifId);
@@ -96,6 +100,33 @@ async function updateBadge() {
   } catch (err) {
     console.warn('Zil: badge update failed', err);
   }
+}
+
+async function notifyLive(channel, liveId) {
+  let tr = false;
+  try {
+    const { user_selected_lang } = await chrome.storage.local.get(['user_selected_lang']);
+    tr = user_selected_lang === 'tr';
+  } catch {
+    tr = false;
+  }
+  try {
+    await chrome.notifications.create(`zil-live-${liveId}`, {
+      type: 'basic',
+      iconUrl: NOTIF_ICON,
+      title: channel.name || 'Zil',
+      message: tr ? 'Su an canli yayinda — izlemek icin tikla' : 'Live now — click to watch',
+    });
+  } catch (err) {
+    console.warn('Zil: live notification failed', err);
+  }
+}
+
+// Per-channel override (chNotify) wins over the global mode; 'default'/missing
+// means "follow global". Forward-compatible: C4 UI writes chNotify.
+function effectiveMode(ch, globalMode) {
+  const m = ch.chNotify && ch.chNotify !== 'default' ? ch.chNotify : globalMode;
+  return ['all', 'badge', 'off'].includes(m) ? m : 'all';
 }
 
 async function notifyNewVideo(channel, video) {
@@ -178,9 +209,12 @@ async function checkNewVideos() {
         next.lastPublished = latest.published;
         next.lastVideoUrl = latest.link;
         next.lastThumb = latest.thumb || ch.lastThumb || '';
-        next.unread = (ch.unread || 0) + 1;
-        newVideos += 1;
-        if (notifyMode === 'all') {
+        const eff = effectiveMode(ch, notifyMode);
+        if (eff !== 'off') {
+          next.unread = (ch.unread || 0) + 1;
+          newVideos += 1;
+        }
+        if (eff === 'all') {
           await notifyNewVideo(next, latest);
         }
       } else if (latest) {
@@ -189,6 +223,25 @@ async function checkNewVideos() {
         next.lastPublished = latest.published;
         next.lastVideoUrl = latest.link;
         next.lastThumb = latest.thumb || ch.lastThumb || '';
+      }
+      // Live detection: best effort, never fatal to the whole check.
+      try {
+        const liveId = await fetchLiveVideoId(ch.id);
+        next.isLive = !!liveId;
+        next.liveVideoId = liveId || null;
+        if (liveId && ch.lastNotifiedLiveId !== liveId) {
+          next.lastNotifiedLiveId = liveId;
+          const effLive = effectiveMode(ch, notifyMode);
+          if (effLive !== 'off') {
+            next.unread = (next.unread || ch.unread || 0) + 1;
+            newVideos += 1;
+          }
+          if (effLive === 'all') {
+            await notifyLive(next, liveId);
+          }
+        }
+      } catch (liveErr) {
+        console.warn(`Zil: live check failed for ${ch.id}`, liveErr);
       }
       updated.push(next);
     } catch (err) {

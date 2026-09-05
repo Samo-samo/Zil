@@ -34,6 +34,17 @@ export function isShorts(video) {
   return !!video && typeof video.link === 'string' && video.link.includes('/shorts/');
 }
 
+// Live detection: /channel/ID/live redirects to a watch URL while the channel
+// is live, and stays on a channel/consent page otherwise. Best effort —
+// callers must catch (network errors throw) and treat null as "unknown".
+export async function fetchLiveVideoId(channelId, fetchFn = fetch) {
+  const res = await timedFetch(`https://www.youtube.com/channel/${channelId}/live`, {}, fetchFn);
+  if (!res.ok) return null;
+  const url = res.url || '';
+  const m = url.match(/[?&]v=([A-Za-z0-9_-]{11})/);
+  return m ? m[1] : null;
+}
+
 function pick(text, re) {
   const m = text.match(re);
   return m ? m[1] : '';

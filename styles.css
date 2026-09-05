@@ -504,3 +504,32 @@ button.btn.secondary:hover {
 .error-line {
     color: var(--primary);
 }
+
+.live-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    margin-bottom: 6px;
+    background: var(--primary);
+    color: #fff;
+    border-radius: 50px;
+    font-size: var(--fs-xs);
+    font-weight: 700;
+}
+
+.live-btn:hover {
+    background: var(--primary-hover);
+}
+
+.live-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #fff;
+    animation: blink 1.2s ease-in-out infinite;
+}
+
+@keyframes blink {
+    50% { opacity: 0.35; }
+}

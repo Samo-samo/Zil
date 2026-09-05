@@ -428,9 +428,30 @@ async function renderChannels() {
         latest.className = 'latest-title';
         latest.textContent = ch.lastVideoTitle || ch.id;
 
+        if (ch.isLive && ch.liveVideoId) {
+            const liveUrl = `https://www.youtube.com/watch?v=${ch.liveVideoId}`;
+            const live = document.createElement('button');
+            live.className = 'live-btn';
+            const liveDot = document.createElement('span');
+            liveDot.className = 'live-dot';
+            live.appendChild(liveDot);
+            live.appendChild(document.createTextNode(t('home.live', 'LIVE')));
+            live.title = t('home.openVideo', 'Open video');
+            live.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openVideo(ch.id, liveUrl);
+            });
+            live.addEventListener('auxclick', (e) => {
+                if (e.button === 1) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    openVideo(ch.id, liveUrl, false);
+                }
+            });
+            body.appendChild(live);
+        }
         body.appendChild(top);
         body.appendChild(latest);
-
         const meta = document.createElement('div');
         meta.className = 'muted';
         if (ch.lastPublished) {
