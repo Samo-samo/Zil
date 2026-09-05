@@ -14,6 +14,7 @@
     "noThumb": "No thumbnail",
     "live": "LIVE",
     "chNotify": "Channel notifications",
+    "chShorts": "Channel Shorts filter",
     "lastError": "Last check failed"
   },
   
@@ -41,6 +42,9 @@
       "off": "Off"
     },
     "chDefault": "Follow global setting",
+    "chShortsDefault": "Follow global",
+    "chShortsHide": "Hide Shorts",
+    "chShortsShow": "Show Shorts",
     "testNotif": "Send test notification",
     "testTitle": "Zil",
     "testMsg": "Notifications are working.",

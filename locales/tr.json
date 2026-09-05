@@ -14,6 +14,7 @@
     "noThumb": "Küçük resim yok",
     "live": "CANLI",
     "chNotify": "Kanal bildirimleri",
+    "chShorts": "Kanal Shorts filtresi",
     "lastError": "Son kontrol başarısız"
   },
   
@@ -41,6 +42,9 @@
       "off": "Kapalı"
     },
     "chDefault": "Genel ayarı kullan",
+    "chShortsDefault": "Genel ayar",
+    "chShortsHide": "Shorts'ları gizle",
+    "chShortsShow": "Shorts'ları göster",
     "testNotif": "Test bildirimi gönder",
     "testTitle": "Zil",
     "testMsg": "Bildirimler çalışıyor.",

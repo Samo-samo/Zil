@@ -372,6 +372,27 @@ async function cycleChNotify(channelId) {
 const BELL_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path>SLASH</svg>';
 const BELL_SLASH = '<line x1="2" y1="2" x2="22" y2="22"></line>';
 
+const CH_SHORTS_ORDER = ['default', 'hide', 'show'];
+
+function chShortsLabel(state) {
+    if (state === 'hide') return t('settings.chShortsHide', 'Hide Shorts');
+    if (state === 'show') return t('settings.chShortsShow', 'Show Shorts');
+    return t('settings.chShortsDefault', 'Follow global');
+}
+
+async function cycleChShorts(channelId) {
+    const channels = await getChannels();
+    const next = channels.map((c) => {
+        if (c.id !== channelId) return c;
+        const cur = CH_SHORTS_ORDER.includes(c.chShorts) ? c.chShorts : 'default';
+        return { ...c, chShorts: CH_SHORTS_ORDER[(CH_SHORTS_ORDER.indexOf(cur) + 1) % CH_SHORTS_ORDER.length] };
+    });
+    await chrome.storage.local.set({ channels: next });
+    await renderHome();
+}
+
+const SHORTS_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"></rect><polygon points="10 9 15 12 10 15 10 9"></polygon>SLASH</svg>';
+
 async function removeChannel(channelId) {
     const channels = await getChannels();
     await chrome.storage.local.set({ channels: channels.filter((c) => c.id !== channelId) });
@@ -431,8 +452,9 @@ async function renderVideoList() {
     const items = [];
     for (const ch of channels) {
         const recent = Array.isArray(ch.recent) ? ch.recent : [];
+        const hideShorts = ch.chShorts === 'hide' || (ch.chShorts !== 'show' && settings.skipShorts === true);
         for (const v of recent) {
-            if (settings.skipShorts === true && isShorts(v)) continue;
+            if (hideShorts && isShorts(v)) continue;
             items.push({
                 ...v,
                 channelId: ch.id,
@@ -614,6 +636,16 @@ async function renderChannelList() {
             e.stopPropagation();
             cycleChNotify(ch.id);
         });
+        const shortsBtn = document.createElement('button');
+        shortsBtn.className = 'icon-btn small';
+        const shState = CH_SHORTS_ORDER.includes(ch.chShorts) ? ch.chShorts : 'default';
+        shortsBtn.title = `${t('home.chShorts', 'Channel Shorts filter')}: ${chShortsLabel(shState)}`;
+        shortsBtn.innerHTML = SHORTS_SVG.replace('SLASH', shState === 'hide' ? BELL_SLASH : '');
+        shortsBtn.classList.toggle('dimmed', shState === 'hide');
+        shortsBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            cycleChShorts(ch.id);
+        });
         const del = document.createElement('button');
         del.className = 'icon-btn small';
         del.title = t('home.remove', 'Remove channel');
@@ -624,6 +656,7 @@ async function renderChannelList() {
         });
         top.appendChild(name);
         top.appendChild(bell);
+        top.appendChild(shortsBtn);
         top.appendChild(del);
 
         const latest = document.createElement('div');

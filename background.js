@@ -183,7 +183,9 @@ async function checkNewVideos() {
       // With the Shorts filter on, track the newest non-Shorts video, but
       // still compare against the unfiltered newest so a fresh Shorts upload
       // does not re-notify for the video below it on the next run.
-      const pool = skipShorts ? feed.videos.filter((v) => !isShorts(v)) : feed.videos;
+      // Per-channel Shorts override wins over the global filter.
+      const hideShorts = ch.chShorts === 'hide' || (ch.chShorts !== 'show' && skipShorts);
+      const pool = hideShorts ? feed.videos.filter((v) => !isShorts(v)) : feed.videos;
       const latest = pool[0];
       const next = {
         ...ch,
