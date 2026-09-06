@@ -664,7 +664,7 @@ async function renderVideoList() {
         const more = document.createElement('button');
         more.className = 'icon-btn small card-menu-btn';
         more.title = t('home.more', 'More');
-        more.textContent = '⋯';
+        more.textContent = '⋮';
         more.addEventListener('click', (e) => {
             e.stopPropagation();
             toggleCardMenu(card, item.channelId);
