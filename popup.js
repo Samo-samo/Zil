@@ -901,8 +901,24 @@ async function renderChannelList() {
             delBtn.className = 'mini-btn danger';
             delBtn.textContent = t('home.remove', 'Remove channel');
             delBtn.addEventListener('click', () => removeChannel(ch.id));
+            const liveBtn = document.createElement('button');
+            liveBtn.className = 'mini-btn';
+            liveBtn.textContent = t('home.checkLive', 'Check live');
+            liveBtn.addEventListener('click', async (e) => {
+                const btn = e.currentTarget;
+                btn.disabled = true;
+                try {
+                    await chrome.runtime.sendMessage({ type: 'zil-check-live', channelId: ch.id });
+                } catch {
+                    // SW wakes on storage change anyway.
+                } finally {
+                    btn.disabled = false;
+                    await renderHome();
+                }
+            });
             actions.appendChild(openBtn);
             actions.appendChild(custBtn);
+            actions.appendChild(liveBtn);
             actions.appendChild(delBtn);
             detail.appendChild(actions);
 

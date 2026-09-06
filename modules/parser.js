@@ -58,12 +58,32 @@ export function scopeAllowsLive(scope) {
   return scope !== 'videos' && scope !== 'shorts';
 }
 
-// Live detection, two strategies (returns { liveId, via, debug }):
-//  1. /channel/ID/live redirects to a watch URL while live.
-//  2. The embed player page contains a videoId only while live — verified
-//     against a real offline embed page (no video identifiers at all there).
-// Best effort — network errors throw, callers must catch and treat null as
-// "unknown". Consent/bot pages surface as via 'consent'/'offline'.
+// Live detection (returns { liveId, via, debug }):
+//  1. /channel/ID/live — YouTube HTTP-redirects to a watch URL while live.
+//     Logged-out/cookie-less fetches (like this one) usually get a 200
+//     client-rendered skeleton instead of a redirect, so the body is scanned
+//     for a server-rendered ID as well. Consent/bot pages surface as via
+//     'consent'.
+//  2. InnerTube channel Live tab (youtubei/v1/browse, params EgJsaXZl) —
+//     JSON lists one tile per stream; currently-live tiles carry a
+//     thumbnailOverlayTimeStatusRenderer with style "LIVE". Verified against
+//     a real live channel (Lofi Girl): 32 LIVE-badged tiles; offline/invalid
+//     channels return no tiles at all.
+//  The old /embed/live_stream strategy was removed: a live embed page
+//  contains no "videoId" at all (only the literal placeholder
+//  "video_id":"live_stream") and an embedded_player_response with
+//  previewPlayabilityStatus ERROR — "Error 153" without a Referer header,
+//  "Error 152 / EMBEDDER_IDENTITY_DENIED" with one. Referer is a forbidden
+//  header for service-worker fetch, so that endpoint can never resolve here.
+// Best effort — network errors resolve to via 'network', callers treat null
+// as "unknown". 'upcoming' means scheduled but not live; 'offline' means the
+// tab resolved with no LIVE tile; 'browse-empty' means no tiles at all
+// (invalid ID or empty tab).
+const INNERTUBE_KEY = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
+const INNERTUBE_BROWSE_URL = `https://www.youtube.com/youtubei/v1/browse?key=${INNERTUBE_KEY}`;
+const LIVE_TAB_PARAMS = 'EgJsaXZl';
+const VIDEO_ID_RE = /^[A-Za-z0-9_-]{11}$/;
+
 export async function fetchLiveVideoId(channelId, fetchFn = fetch) {
   try {
     const res = await timedFetch(`https://www.youtube.com/channel/${channelId}/live`, {}, fetchFn);
@@ -73,28 +93,109 @@ export async function fetchLiveVideoId(channelId, fetchFn = fetch) {
         return { liveId: null, via: 'consent', debug: url.slice(0, 80) };
       }
       const m = url.match(/(?:[?&]v=|\/live\/|\/embed\/)([A-Za-z0-9_-]{11})/);
-      if (m) return { liveId: m[1], via: 'redirect', debug: url.slice(0, 120) };
+      if (m && m[1] !== 'live_stream') return { liveId: m[1], via: 'redirect', debug: url.slice(0, 120) };
+      const html = await res.text();
+      const inline = extractInlineLiveId(html);
+      if (inline) return { liveId: inline, via: 'live-body', debug: '' };
     }
   } catch {
-    // Fall through to the embed strategy.
+    // Fall through to the Live-tab strategy.
   }
   try {
-    const res2 = await timedFetch(
-      `https://www.youtube.com/embed/live_stream?channel=${channelId}`,
-      { headers: { 'Accept-Language': 'en' } },
-      fetchFn
-    );
-    if (res2.ok) {
-      const html = await res2.text();
-      const vid = html.match(/"videoId":"([A-Za-z0-9_-]{11})"/)
-        || html.match(/\\"videoId\\":\\"([A-Za-z0-9_-]{11})/);
-      if (vid) return { liveId: vid[1], via: 'embed', debug: '' };
-      return { liveId: null, via: 'offline', debug: '' };
-    }
-    return { liveId: null, via: `embed-http`, debug: String(res2.status) };
+    return await fetchLiveViaBrowse(channelId, fetchFn);
   } catch {
     return { liveId: null, via: 'network', debug: '' };
   }
+}
+
+// Server-rendered ID inside a /live watch page (canonical link or player
+// config). The literal "live_stream" placeholder is never a video ID.
+function extractInlineLiveId(html) {
+  if (!html || typeof html !== 'string') return null;
+  const patterns = [
+    /<link rel="canonical" href="https:\/\/www\.youtube\.com\/watch\?v=([A-Za-z0-9_-]{11})/,
+    /"videoId":"([A-Za-z0-9_-]{11})"/,
+    /\\"videoId\\":\\"([A-Za-z0-9_-]{11})/,
+  ];
+  for (const re of patterns) {
+    const m = html.match(re);
+    if (m && m[1] !== 'live_stream') return m[1];
+  }
+  return null;
+}
+
+async function fetchLiveViaBrowse(channelId, fetchFn = fetch) {
+  const res = await timedFetch(
+    INNERTUBE_BROWSE_URL,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept-Language': 'en' },
+      body: JSON.stringify({
+        browseId: channelId,
+        params: LIVE_TAB_PARAMS,
+        context: { client: { clientName: 'TVHTML5', clientVersion: '7.20240702.00.00', hl: 'en', gl: 'US' } },
+      }),
+    },
+    fetchFn
+  );
+  if (!res.ok) return { liveId: null, via: 'browse-http', debug: String(res.status) };
+  let data;
+  try {
+    data = await res.json();
+  } catch {
+    return { liveId: null, via: 'browse-parse', debug: '' };
+  }
+  const found = findLiveTile(data);
+  if (found.liveId) return { liveId: found.liveId, via: 'browse-live', debug: '' };
+  if (!found.tilesSeen) return { liveId: null, via: 'browse-empty', debug: '' };
+  if (found.upcoming) return { liveId: null, via: 'upcoming', debug: '' };
+  return { liveId: null, via: 'offline', debug: '' };
+}
+
+// Generic walk over a Live-tab browse response: at each object that directly
+// owns a video ID (videoRenderer-style `videoId` or tile-style
+// onSelectCommand.watchEndpoint.videoId), check whether its subtree carries
+// a LIVE overlay/badge. Association happens only at the owning object, so a
+// live badge can never be attributed to a neighbouring tile. Shape-agnostic
+// across WEB/TV clients (no hardcoded renderer paths).
+function findLiveTile(root) {
+  const out = { liveId: null, upcoming: false, tilesSeen: 0 };
+  function ownedVideoId(o) {
+    if (!o || typeof o !== 'object') return '';
+    if (typeof o.videoId === 'string' && VIDEO_ID_RE.test(o.videoId) && o.videoId !== 'live_stream') return o.videoId;
+    const ep = o.onSelectCommand && o.onSelectCommand.watchEndpoint;
+    if (ep && typeof ep.videoId === 'string' && VIDEO_ID_RE.test(ep.videoId)) return ep.videoId;
+    return '';
+  }
+  // Returns true when this subtree contains a currently-live marker.
+  function scan(o) {
+    if (out.liveId || !o || typeof o !== 'object') return false;
+    if (Array.isArray(o)) {
+      let live = false;
+      for (const x of o) {
+        if (scan(x)) live = true;
+        if (out.liveId) break;
+      }
+      return live;
+    }
+    if (o.thumbnailOverlayTimeStatusRenderer && o.thumbnailOverlayTimeStatusRenderer.style === 'LIVE') return true;
+    if (o.metadataBadgeRenderer && o.metadataBadgeRenderer.style === 'BADGE_STYLE_TYPE_LIVE_NOW') return true;
+    if (typeof o.style === 'string' && /UPCOMING/.test(o.style)) out.upcoming = true;
+    if (o.upcomingEventData) out.upcoming = true;
+    let live = false;
+    for (const k of Object.keys(o)) {
+      if (scan(o[k])) live = true;
+      if (out.liveId) break;
+    }
+    const vid = ownedVideoId(o);
+    if (vid) {
+      out.tilesSeen += 1;
+      if (live && !out.liveId) out.liveId = vid;
+    }
+    return live;
+  }
+  scan(root);
+  return out;
 }
 
 // Channel avatar: first author thumbnail on the channel page. Returns '' when

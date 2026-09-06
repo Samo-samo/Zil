@@ -76,9 +76,19 @@ chrome.notifications.onClicked.addListener((notifId) => {
 });
 
 // Popup triggers a manual refresh through this (SW may be asleep otherwise).
+// 'zil-check-live' probes a single stored channel for live status, persists
+// the result, notifies on transition exactly like the loop, and responds
+// with { ok, channelId, isLive, liveVideoId, liveVia, liveDebug,
+// liveCheckedAt, notified }.
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg && msg.type === 'zil-check-now') {
     checkNewVideos()
+      .then((result) => sendResponse(result))
+      .catch((err) => sendResponse({ ok: false, error: String((err && err.message) || err) }));
+    return true;
+  }
+  if (msg && msg.type === 'zil-check-live' && typeof msg.channelId === 'string') {
+    probeOneChannelLive(msg.channelId)
       .then((result) => sendResponse(result))
       .catch((err) => sendResponse({ ok: false, error: String((err && err.message) || err) }));
     return true;
@@ -157,6 +167,68 @@ async function notifyNewVideo(channel, video) {
   }
 }
 
+// Live detection: best effort, never fatal to the whole check.
+// Dual strategy inside fetchLiveVideoId; result diagnostics are stored
+// so the popup can show why a live stream was (not) seen.
+async function applyLiveCheck(base, notifyMode, now) {
+  const scope = scopeOf(base);
+  const allowLive = scopeAllowsLive(scope);
+  const live = allowLive ? await fetchLiveVideoId(base.id) : { liveId: null, via: 'filtered', debug: '' };
+  const liveId = live && live.liveId ? live.liveId : null;
+  const next = {
+    ...base,
+    isLive: !!liveId,
+    liveVideoId: liveId,
+    liveVia: live ? live.via : 'none',
+    liveDebug: live && live.debug ? live.debug : '',
+    liveCheckedAt: now,
+  };
+  let counted = false;
+  let notified = false;
+  if (liveId && base.lastNotifiedLiveId !== liveId) {
+    next.lastNotifiedLiveId = liveId;
+    const effLive = effectiveMode(base, notifyMode);
+    if (effLive !== 'off') {
+      next.unread = (next.unread || base.unread || 0) + 1;
+      counted = true;
+    }
+    if (effLive === 'all') {
+      await notifyLive(next, liveId);
+      notified = true;
+    }
+  }
+  return { next, counted, notified };
+}
+
+async function probeOneChannelLive(channelId) {
+  const { notifyMode } = await getSettings();
+  const channels = await getChannels();
+  const idx = channels.findIndex((c) => c && c.id === channelId);
+  if (idx < 0) return { ok: false, error: 'unknown-channel' };
+  const now = new Date().toISOString();
+  try {
+    const { next, counted, notified } = await applyLiveCheck(channels[idx], notifyMode, now);
+    const updated = channels.slice();
+    updated[idx] = next;
+    await chrome.storage.local.set({ channels: updated });
+    await updateBadge();
+    return {
+      ok: true,
+      channelId,
+      isLive: next.isLive === true,
+      liveVideoId: next.liveVideoId || null,
+      liveVia: next.liveVia || 'none',
+      liveDebug: next.liveDebug || '',
+      liveCheckedAt: next.liveCheckedAt || now,
+      notified: notified === true,
+      counted: counted === true,
+    };
+  } catch (liveErr) {
+    console.warn(`Zil: live check failed for ${channelId}`, liveErr);
+    return { ok: false, error: String((liveErr && liveErr.message) || liveErr) };
+  }
+}
+
 async function checkNewVideos() {
   const { notifyMode, skipShorts, checkIntervalMin } = await getSettings();
   const channels = await getChannels();
@@ -186,7 +258,6 @@ async function checkNewVideos() {
       // Per-channel content scope (videos / shorts / live combos).
       const scope = scopeOf(ch);
       const pool = scopePool(scope, feed.videos, skipShorts);
-      const allowLive = scopeAllowsLive(scope);
       const latest = pool[0];
       const next = {
         ...ch,
@@ -250,32 +321,14 @@ async function checkNewVideos() {
           // Placeholder stays.
         }
       }
-      // Live detection: best effort, never fatal to the whole check.
-      // Dual strategy inside fetchLiveVideoId; result diagnostics are stored
-      // so the popup can show why a live stream was (not) seen.
       try {
-        const live = allowLive ? await fetchLiveVideoId(ch.id) : { liveId: null, via: 'filtered', debug: '' };
-        const liveId = live && live.liveId ? live.liveId : null;
-        next.isLive = !!liveId;
-        next.liveVideoId = liveId;
-        next.liveVia = live ? live.via : 'none';
-        next.liveDebug = live && live.debug ? live.debug : '';
-        next.liveCheckedAt = now;
-        if (liveId && ch.lastNotifiedLiveId !== liveId) {
-          next.lastNotifiedLiveId = liveId;
-          const effLive = effectiveMode(ch, notifyMode);
-          if (effLive !== 'off') {
-            next.unread = (next.unread || ch.unread || 0) + 1;
-            newVideos += 1;
-          }
-          if (effLive === 'all') {
-            await notifyLive(next, liveId);
-          }
-        }
+        const { next: withLive, counted } = await applyLiveCheck(next, notifyMode, now);
+        if (counted) newVideos += 1;
+        updated.push(withLive);
       } catch (liveErr) {
         console.warn(`Zil: live check failed for ${ch.id}`, liveErr);
+        updated.push(next);
       }
-      updated.push(next);
     } catch (err) {
       const code = String((err && err.message) || err);
       console.warn(`Zil: check failed for ${ch.id} (${code})`);

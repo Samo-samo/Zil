@@ -18,6 +18,7 @@
     "liveOff": "Not live",
     "liveUnknown": "Unknown",
     "liveCheck": "Live check",
+    "checkLive": "Check live",
     "chNotify": "Channel notifications",
     "contentScope": "Content",
     "expand": "Expand",
