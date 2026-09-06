@@ -4,6 +4,11 @@ const ALARM_NAME = 'checkYouTubeRSS';
 const BADGE_COLOR = '#dc2626';
 const NOTIF_ICON = 'icons/bell-notif-128.png';
 
+// Live detection is DISABLED: it catches real lives but flags every channel
+// as live (false-positive storm). See .ai/LIVE.md. While false, checks clear
+// stale isLive flags instead of probing.
+const LIVE_ENABLED = false;
+
 export const DEFAULT_SETTINGS = { checkIntervalMin: 15, notifyMode: 'all', skipShorts: false };
 // notifyMode: 'all' (notification + badge) | 'badge' (badge only) | 'off'
 
@@ -171,6 +176,9 @@ async function notifyNewVideo(channel, video) {
 // Dual strategy inside fetchLiveVideoId; result diagnostics are stored
 // so the popup can show why a live stream was (not) seen.
 async function applyLiveCheck(base, notifyMode, now) {
+  if (!LIVE_ENABLED) {
+    return { next: { ...base, isLive: false, liveVideoId: null }, counted: false, notified: false };
+  }
   const scope = scopeOf(base);
   const allowLive = scopeAllowsLive(scope);
   const live = allowLive ? await fetchLiveVideoId(base.id) : { liveId: null, via: 'filtered', debug: '' };
@@ -201,6 +209,7 @@ async function applyLiveCheck(base, notifyMode, now) {
 }
 
 async function probeOneChannelLive(channelId) {
+  if (!LIVE_ENABLED) return { ok: false, error: 'disabled' };
   const { notifyMode } = await getSettings();
   const channels = await getChannels();
   const idx = channels.findIndex((c) => c && c.id === channelId);

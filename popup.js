@@ -8,6 +8,10 @@ let selectedLang = '';
 let uiStrings = {};
 let feedLimit = 25;
 
+// Mirror of background.js: all live UI stays hidden while detection is off.
+// See .ai/LIVE.md.
+const LIVE_ENABLED = false;
+
 lang(selectedLang).then((strings) => { uiStrings = strings || {}; });
 
 function t(path, fallback) {
@@ -724,7 +728,7 @@ async function renderVideoList() {
         const pills = document.createElement('div');
         pills.className = 'pill-row';
         let hasPill = false;
-        if (item.liveHere) {
+        if (LIVE_ENABLED && item.liveHere) {
             const live = document.createElement('span');
             live.className = 'live-btn';
             const liveDot = document.createElement('span');
@@ -808,7 +812,7 @@ async function renderChannelList() {
             name.appendChild(dot);
         }
         headText.appendChild(name);
-        if (ch.isLive && ch.liveVideoId) {
+        if (LIVE_ENABLED && ch.isLive && ch.liveVideoId) {
             const lm = document.createElement('span');
             lm.className = 'live-mini';
             lm.textContent = t('home.live', 'LIVE');
@@ -885,7 +889,7 @@ async function renderChannelList() {
             liveRow.appendChild(liveK);
             liveRow.appendChild(liveV);
             if (ch.liveDebug) liveV.title = ch.liveDebug;
-            detail.appendChild(liveRow);
+            if (LIVE_ENABLED) detail.appendChild(liveRow);
 
             const actions = document.createElement('div');
             actions.className = 'ch-actions';
@@ -901,7 +905,9 @@ async function renderChannelList() {
             delBtn.className = 'mini-btn danger';
             delBtn.textContent = t('home.remove', 'Remove channel');
             delBtn.addEventListener('click', () => removeChannel(ch.id));
-            const liveBtn = document.createElement('button');
+            let liveBtn = null;
+            if (LIVE_ENABLED) {
+            liveBtn = document.createElement('button');
             liveBtn.className = 'mini-btn';
             liveBtn.textContent = t('home.checkLive', 'Check live');
             liveBtn.addEventListener('click', async (e) => {
@@ -916,9 +922,10 @@ async function renderChannelList() {
                     await renderHome();
                 }
             });
+            }
             actions.appendChild(openBtn);
             actions.appendChild(custBtn);
-            actions.appendChild(liveBtn);
+            if (LIVE_ENABLED) actions.appendChild(liveBtn);
             actions.appendChild(delBtn);
             detail.appendChild(actions);
 
