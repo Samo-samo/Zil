@@ -374,6 +374,55 @@ details .content {
     color: var(--text-main);
 }
 
+/* --- Live strip: single scrollable row, arrows instead of scrollbar --- */
+.live-strip-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.live-strip-wrap[hidden] {
+    display: none;
+}
+
+.live-strip {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    flex: 1;
+    padding: 4px 2px;
+    scrollbar-width: none;
+}
+
+.live-strip::-webkit-scrollbar {
+    display: none;
+}
+
+.live-item {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    padding: 2px;
+    flex-shrink: 0;
+    background: var(--primary);
+}
+
+.live-item img,
+.live-item-ph {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-main);
+    color: var(--text-main);
+    font-weight: 700;
+    font-size: var(--fs-sm);
+}
+
 .video-title {
     font-size: var(--fs-sm);
     font-weight: 700;

@@ -612,6 +612,49 @@ async function setView(view) {
 
 document.getElementById('viewVideosBtn').addEventListener('click', () => setView('videos'));
 document.getElementById('viewChannelsBtn').addEventListener('click', () => setView('channels'));
+document.getElementById('liveLeft').addEventListener('click', () => {
+    document.getElementById('liveStrip').scrollBy({ left: -220 });
+});
+document.getElementById('liveRight').addEventListener('click', () => {
+    document.getElementById('liveStrip').scrollBy({ left: 220 });
+});
+
+async function renderLiveStrip() {
+    const wrap = document.getElementById('liveStripWrap');
+    const strip = document.getElementById('liveStrip');
+    const channels = await getChannels();
+    const live = channels.filter((c) => c.isLive && c.liveVideoId);
+    strip.textContent = '';
+    wrap.hidden = live.length === 0;
+    if (!live.length) return;
+    for (const ch of live) {
+        const url = `https://www.youtube.com/watch?v=${ch.liveVideoId}`;
+        const btn = document.createElement('button');
+        btn.className = 'live-item';
+        btn.title = `${ch.name || ch.id} — ${t('home.live', 'LIVE')}`;
+        if (ch.avatar) {
+            const im = document.createElement('img');
+            im.src = ch.avatar;
+            im.alt = '';
+            im.loading = 'lazy';
+            btn.appendChild(im);
+        } else {
+            const ph = document.createElement('span');
+            ph.className = 'live-item-ph';
+            ph.textContent = (ch.name || ch.id || '?').trim().charAt(0).toUpperCase();
+            btn.appendChild(ph);
+        }
+        btn.addEventListener('click', () => openVideo(ch.id, ch.liveVideoId, new Date().toISOString(), url));
+        btn.addEventListener('auxclick', (e) => {
+            if (e.button === 1) {
+                e.preventDefault();
+                openVideo(ch.id, ch.liveVideoId, new Date().toISOString(), url, false);
+            }
+        });
+        noAutoscroll(btn);
+        strip.appendChild(btn);
+    }
+}
 
 async function renderHome() {
     closeCardMenu();
@@ -625,6 +668,7 @@ async function renderHome() {
     } else {
         await renderChannelList();
     }
+    await renderLiveStrip();
 }
 
 async function renderVideoList() {
