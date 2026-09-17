@@ -7,7 +7,20 @@ const NOTIF_ICON = 'icons/bell-notif-128.png';
 // Live detection is DISABLED: it catches real lives but flags every channel
 // as live (false-positive storm). See .ai/LIVE.md. While false, checks clear
 // stale isLive flags instead of probing.
-const LIVE_ENABLED = false;
+const LIVE_ENABLED = true;
+
+// One-time cleanup of the false-positive era: drop stale live flags (and the
+// notified marker, so a genuinely-live channel notifies once on re-enable).
+async function migrateOnce() {
+  const { migrations = {} } = await chrome.storage.local.get(['migrations']);
+  if (migrations.liveResetV1) return;
+  const channels = await getChannels();
+  await chrome.storage.local.set({
+    channels: channels.map((c) => ({ ...c, isLive: false, liveVideoId: null, lastNotifiedLiveId: null })),
+    migrations: { ...migrations, liveResetV1: true },
+  });
+  await updateBadge();
+}
 
 export const DEFAULT_SETTINGS = { checkIntervalMin: 15, notifyMode: 'all', skipShorts: false };
 // notifyMode: 'all' (notification + badge) | 'badge' (badge only) | 'off'
@@ -41,11 +54,13 @@ async function ensureAlarm() {
 }
 
 chrome.runtime.onInstalled.addListener(async () => {
+  await migrateOnce();
   await ensureAlarm();
   await updateBadge();
 });
 
 chrome.runtime.onStartup.addListener(async () => {
+  await migrateOnce();
   await ensureAlarm();
   checkNewVideos();
 });

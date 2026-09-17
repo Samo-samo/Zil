@@ -10,7 +10,7 @@ let feedLimit = 25;
 
 // Mirror of background.js: all live UI stays hidden while detection is off.
 // See .ai/LIVE.md.
-const LIVE_ENABLED = false;
+const LIVE_ENABLED = true;
 
 lang(selectedLang).then((strings) => { uiStrings = strings || {}; });
 

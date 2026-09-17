@@ -152,13 +152,13 @@ async function fetchLiveViaBrowse(channelId, fetchFn = fetch) {
   return { liveId: null, via: 'offline', debug: '' };
 }
 
-// Generic walk over a Live-tab browse response: at each object that directly
-// owns a video ID (videoRenderer-style `videoId` or tile-style
-// onSelectCommand.watchEndpoint.videoId), check whether its subtree carries
-// a LIVE overlay/badge. Association happens only at the owning object, so a
-// live badge can never be attributed to a neighbouring tile. Shape-agnostic
-// across WEB/TV clients (no hardcoded renderer paths).
-function findLiveTile(root) {
+// Strict walk over a Live-tab browse response. The old walker bubbled a LIVE
+// marker found ANYWHERE up the whole tree and then attributed it to ANY
+// videoId in the tree (trailer, featured video, …) — that false-positive
+// storm is why every channel looked live. Now: only an object that IS a
+// video tile (owns a videoId AND has tile fields) can be live, and only from
+// a LIVE marker inside its OWN subtree (nested tiles excluded).
+export function findLiveTile(root) {
   const out = { liveId: null, upcoming: false, tilesSeen: 0 };
   function ownedVideoId(o) {
     if (!o || typeof o !== 'object') return '';
@@ -167,34 +167,46 @@ function findLiveTile(root) {
     if (ep && typeof ep.videoId === 'string' && VIDEO_ID_RE.test(ep.videoId)) return ep.videoId;
     return '';
   }
-  // Returns true when this subtree contains a currently-live marker.
-  function scan(o) {
-    if (out.liveId || !o || typeof o !== 'object') return false;
-    if (Array.isArray(o)) {
-      let live = false;
-      for (const x of o) {
-        if (scan(x)) live = true;
-        if (out.liveId) break;
-      }
-      return live;
-    }
+  function isTileLike(o) {
+    if (!o || typeof o !== 'object' || Array.isArray(o)) return false;
+    if (!ownedVideoId(o)) return false;
+    return !!(o.title || o.ownerText || o.thumbnail || o.viewCountText || o.lengthText || o.thumbnailOverlays);
+  }
+  function subtreeHasLive(o, depth) {
+    if (!o || typeof o !== 'object' || depth > 8) return false;
+    if (Array.isArray(o)) return o.some((x) => subtreeHasLive(x, depth + 1));
     if (o.thumbnailOverlayTimeStatusRenderer && o.thumbnailOverlayTimeStatusRenderer.style === 'LIVE') return true;
     if (o.metadataBadgeRenderer && o.metadataBadgeRenderer.style === 'BADGE_STYLE_TYPE_LIVE_NOW') return true;
+    const values = Object.values(o);
+    for (const v of values) {
+      // Never cross into a nested tile: its badge belongs to it, not us.
+      if (v && typeof v === 'object' && !Array.isArray(v) && isTileLike(v)) continue;
+      if (subtreeHasLive(v, depth + 1)) return true;
+    }
+    return false;
+  }
+  function walk(o) {
+    if (out.liveId || !o || typeof o !== 'object') return;
+    if (Array.isArray(o)) {
+      for (const x of o) {
+        walk(x);
+        if (out.liveId) return;
+      }
+      return;
+    }
     if (typeof o.style === 'string' && /UPCOMING/.test(o.style)) out.upcoming = true;
     if (o.upcomingEventData) out.upcoming = true;
-    let live = false;
-    for (const k of Object.keys(o)) {
-      if (scan(o[k])) live = true;
-      if (out.liveId) break;
-    }
-    const vid = ownedVideoId(o);
-    if (vid) {
+    if (isTileLike(o)) {
       out.tilesSeen += 1;
-      if (live && !out.liveId) out.liveId = vid;
+      if (subtreeHasLive(o, 0)) out.liveId = ownedVideoId(o);
+      if (out.liveId) return;
     }
-    return live;
+    for (const v of Object.values(o)) {
+      walk(v);
+      if (out.liveId) return;
+    }
   }
-  scan(root);
+  walk(root);
   return out;
 }
 
