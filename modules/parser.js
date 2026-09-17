@@ -93,6 +93,7 @@ export function isQuietNow(settings, now = new Date()) {
 // (invalid ID or empty tab).
 const INNERTUBE_KEY = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
 const INNERTUBE_BROWSE_URL = `https://www.youtube.com/youtubei/v1/browse?key=${INNERTUBE_KEY}`;
+const INNERTUBE_VISITOR_URL = `https://www.youtube.com/youtubei/v1/visitor_id?key=${INNERTUBE_KEY}`;
 const LIVE_TAB_PARAMS = 'EgJsaXZl';
 const VIDEO_ID_RE = /^[A-Za-z0-9_-]{11}$/;
 
@@ -128,19 +129,12 @@ export async function fetchLiveVideoId(channelId, fetchFn = fetch) {
 }
 
 async function fetchLiveViaBrowse(channelId, fetchFn = fetch) {
-  const res = await timedFetch(
-    INNERTUBE_BROWSE_URL,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept-Language': 'en' },
-      body: JSON.stringify({
-        browseId: channelId,
-        params: LIVE_TAB_PARAMS,
-        context: { client: { clientName: 'TVHTML5', clientVersion: '7.20240702.00.00', hl: 'en', gl: 'US' } },
-      }),
-    },
-    fetchFn
-  );
+  let res = await postLiveTab(channelId, fetchFn, await getVisitorData(fetchFn));
+  // Sporadic 403s are YouTube's bot mitigation for visitor-less requests:
+  // refresh the token once and retry before giving up.
+  if (res.status === 403) {
+    res = await postLiveTab(channelId, fetchFn, await getVisitorData(fetchFn, true));
+  }
   if (!res.ok) return { liveId: null, via: 'browse-http', debug: String(res.status) };
   let data;
   try {
@@ -153,6 +147,57 @@ async function fetchLiveViaBrowse(channelId, fetchFn = fetch) {
   if (!found.tilesSeen) return { liveId: null, via: 'browse-empty', debug: '' };
   if (found.upcoming) return { liveId: null, via: 'upcoming', debug: '' };
   return { liveId: null, via: 'offline', debug: '' };
+}
+
+// visitorData identifies the logged-out session to InnerTube. Without it,
+// browse calls sporadically 403. Cached per service-worker lifetime; the
+// browse call refreshes + retries once on 403.
+let cachedVisitorData = '';
+
+async function getVisitorData(fetchFn = fetch, force = false) {
+  if (!force && cachedVisitorData) return cachedVisitorData;
+  try {
+    const res = await timedFetch(
+      INNERTUBE_VISITOR_URL,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ context: { client: { clientName: 'TVHTML5', clientVersion: '7.20240702.00.00' } } }),
+      },
+      fetchFn
+    );
+    if (!res.ok) return cachedVisitorData;
+    const data = await res.json();
+    const vd = data && data.responseContext && data.responseContext.visitorData;
+    if (typeof vd === 'string' && vd) cachedVisitorData = vd;
+  } catch {
+    // Keep the previous token (or empty) — browse still attempted.
+  }
+  return cachedVisitorData;
+}
+
+function browseClient(visitorData) {
+  const client = { clientName: 'TVHTML5', clientVersion: '7.20240702.00.00', hl: 'en', gl: 'US' };
+  if (visitorData) client.visitorData = visitorData;
+  return client;
+}
+
+async function postLiveTab(channelId, fetchFn, visitorData) {
+  const headers = { 'Content-Type': 'application/json', 'Accept-Language': 'en' };
+  if (visitorData) headers['X-Goog-Visitor-Id'] = visitorData;
+  return timedFetch(
+    INNERTUBE_BROWSE_URL,
+    {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        browseId: channelId,
+        params: LIVE_TAB_PARAMS,
+        context: { client: browseClient(visitorData) },
+      }),
+    },
+    fetchFn
+  );
 }
 
 // Strict walk over a Live-tab browse response. The old walker bubbled a LIVE
