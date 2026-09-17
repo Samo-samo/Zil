@@ -219,12 +219,18 @@ async function notifyNewVideo(channel, video) {
   }
 }
 
-// Live detection: best effort, never fatal to the whole check.
-// Dual strategy inside fetchLiveVideoId; result diagnostics are stored
-// so the popup can show why a live stream was (not) seen.
-async function applyLiveCheck(base, notifyMode, now, quietActive = false) {
+// A video check is one tiny RSS fetch (~50-100KB static XML). A live probe is
+// a channel HTML page (~1MB) plus an InnerTube JSON (~1MB) — roughly 25x the
+// traffic and far more bot-mitigation attention. So live probes are throttled
+// per channel; video checks always run. Manual probes bypass the throttle.
+const LIVE_MIN_INTERVAL_MS = 30 * 60 * 1000;
+
+async function applyLiveCheck(base, notifyMode, now, quietActive = false, force = false) {
   if (!LIVE_ENABLED) {
     return { next: { ...base, isLive: false, liveVideoId: null }, counted: false, notified: false };
+  }
+  if (!force && base.liveCheckedAt && Date.parse(now) - new Date(base.liveCheckedAt).getTime() < LIVE_MIN_INTERVAL_MS) {
+    return { next: { ...base }, counted: false, notified: false, throttled: true };
   }
   const scope = scopeOf(base);
   const allowLive = scopeAllowsLive(scope);
@@ -265,7 +271,7 @@ async function probeOneChannelLive(channelId) {
   if (idx < 0) return { ok: false, error: 'unknown-channel' };
   const now = new Date().toISOString();
   try {
-    const { next, counted, notified } = await applyLiveCheck(channels[idx], notifyMode, now, isQuietNow(settings));
+    const { next, counted, notified } = await applyLiveCheck(channels[idx], notifyMode, now, isQuietNow(settings), true);
     const updated = channels.slice();
     updated[idx] = next;
     await chrome.storage.local.set({ channels: updated });
