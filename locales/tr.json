@@ -45,6 +45,11 @@
     "advanced": "Gelişmiş",
     "darkMode": "Karanlık Mod",
     "shorts": "Shorts'ları atla",
+    "quiet": {
+      "label": "Sessiz saatler",
+      "from": "Başlangıç",
+      "to": "Bitiş"
+    },
     "interval": {
       "label": "Kontrol aralığı",
       "o15": "15 dakikada bir",

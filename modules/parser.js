@@ -58,6 +58,17 @@ export function scopeAllowsLive(scope) {
   return scope !== 'videos' && scope !== 'shorts';
 }
 
+// Quiet hours suppress OS notifications (badge still counts). Handles
+// overnight windows (e.g. 23 -> 7) as well as same-day ones.
+export function isQuietNow(settings, now = new Date()) {
+  const q = settings && settings.quiet;
+  if (!q || q.enabled !== true) return false;
+  const h = now.getHours();
+  if (q.start === q.end) return true;
+  if (q.start < q.end) return h >= q.start && h < q.end;
+  return h >= q.start || h < q.end;
+}
+
 // Live detection (returns { liveId, via, debug }):
 //  1. /channel/ID/live — YouTube HTTP-redirects to a watch URL while live.
 //     Logged-out/cookie-less fetches (like this one) usually get a 200

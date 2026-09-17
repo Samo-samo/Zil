@@ -45,6 +45,11 @@
     "advanced": "Advanced",
     "darkMode": "Dark Mode",
     "shorts": "Skip Shorts",
+    "quiet": {
+      "label": "Quiet hours",
+      "from": "From",
+      "to": "To"
+    },
     "interval": {
       "label": "Check interval",
       "o15": "Every 15 minutes",

@@ -101,6 +101,24 @@
                     <label for="skipShorts" data-i18n="settings.shorts">Skip Shorts</label>
                     <input type="checkbox" name="skipShorts" id="skipShorts" class="check">
                 </div>
+                <div class="flex setting-row">
+                    <label for="quietEnable" data-i18n="settings.quiet.label">Quiet hours</label>
+                    <input type="checkbox" name="quietEnable" id="quietEnable" class="check">
+                </div>
+                <div class="flex setting-row">
+                    <label for="quietStart" data-i18n="settings.quiet.from">From</label>
+                    <div class="select-wrapper">
+                        <select name="quietStart" id="quietStart"></select>
+                        <svg class="select-arrow" xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </div>
+                </div>
+                <div class="flex setting-row">
+                    <label for="quietEnd" data-i18n="settings.quiet.to">To</label>
+                    <div class="select-wrapper">
+                        <select name="quietEnd" id="quietEnd"></select>
+                        <svg class="select-arrow" xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </div>
+                </div>
                 <div class="setting-row">
                     <button id="testNotifBtn" class="btn secondary" data-i18n="settings.testNotif">Send test notification</button>
                 </div>

@@ -1,7 +1,7 @@
 import { lang } from './modules/localizator.js';
 import { resolveChannelId, fetchChannelFeed, normalizeChannels, isShorts, fetchChannelAvatar, scopeOf, scopePool, CH_SCOPE_ORDER } from './modules/parser.js';
 
-const DEFAULT_SETTINGS = { checkIntervalMin: 15, notifyMode: 'all', skipShorts: false };
+const DEFAULT_SETTINGS = { checkIntervalMin: 15, notifyMode: 'all', skipShorts: false, quiet: { enabled: false, start: 23, end: 7 } };
 const REFRESH_TIMEOUT_MS = 25000;
 
 let selectedLang = '';
@@ -75,10 +75,25 @@ darkModeToggle.addEventListener('change', async () => {
     }
 });
 
-// ---- Check settings (interval + notify mode + shorts filter) ----
+// ---- Check settings (interval + notify mode + shorts filter + quiet hours) ----
 const checkIntervalSelect = document.getElementById('checkInterval');
 const notifyModeSelect = document.getElementById('notifyMode');
 const skipShortsToggle = document.getElementById('skipShorts');
+const quietEnableToggle = document.getElementById('quietEnable');
+const quietStartSelect = document.getElementById('quietStart');
+const quietEndSelect = document.getElementById('quietEnd');
+
+function fillHourOptions(select) {
+    for (let h = 0; h < 24; h++) {
+        const opt = document.createElement('option');
+        opt.value = String(h);
+        opt.textContent = `${String(h).padStart(2, '0')}:00`;
+        select.appendChild(opt);
+    }
+}
+
+if (quietStartSelect && !quietStartSelect.options.length) fillHourOptions(quietStartSelect);
+if (quietEndSelect && !quietEndSelect.options.length) fillHourOptions(quietEndSelect);
 
 async function loadSettings() {
     const { settings = {} } = await chrome.storage.local.get(['settings']);
@@ -86,6 +101,10 @@ async function loadSettings() {
     if (checkIntervalSelect) checkIntervalSelect.value = String(merged.checkIntervalMin);
     if (notifyModeSelect) notifyModeSelect.value = merged.notifyMode;
     if (skipShortsToggle) skipShortsToggle.checked = merged.skipShorts === true;
+    const q = (merged.quiet && typeof merged.quiet === 'object') ? merged.quiet : {};
+    if (quietEnableToggle) quietEnableToggle.checked = q.enabled === true;
+    if (quietStartSelect) quietStartSelect.value = String(Number.isInteger(q.start) ? q.start : 23);
+    if (quietEndSelect) quietEndSelect.value = String(Number.isInteger(q.end) ? q.end : 7);
 }
 
 async function saveSettings() {
@@ -93,6 +112,11 @@ async function saveSettings() {
         checkIntervalMin: Number(checkIntervalSelect ? checkIntervalSelect.value : 15) || 15,
         notifyMode: notifyModeSelect ? notifyModeSelect.value : 'all',
         skipShorts: skipShortsToggle ? skipShortsToggle.checked : false,
+        quiet: {
+            enabled: quietEnableToggle ? quietEnableToggle.checked : false,
+            start: quietStartSelect ? Number(quietStartSelect.value) : 23,
+            end: quietEndSelect ? Number(quietEndSelect.value) : 7,
+        },
     };
     await chrome.storage.local.set({ settings });
     // Background rebuilds the alarm via storage.onChanged.
@@ -101,6 +125,9 @@ async function saveSettings() {
 if (checkIntervalSelect) checkIntervalSelect.addEventListener('change', saveSettings);
 if (notifyModeSelect) notifyModeSelect.addEventListener('change', saveSettings);
 if (skipShortsToggle) skipShortsToggle.addEventListener('change', saveSettings);
+if (quietEnableToggle) quietEnableToggle.addEventListener('change', saveSettings);
+if (quietStartSelect) quietStartSelect.addEventListener('change', saveSettings);
+if (quietEndSelect) quietEndSelect.addEventListener('change', saveSettings);
 
 await loadSettings();
 

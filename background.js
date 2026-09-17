@@ -1,4 +1,4 @@
-import { fetchChannelFeed, normalizeChannels, scopeOf, scopePool, scopeAllowsLive, fetchLiveVideoId, fetchChannelAvatar } from './modules/parser.js';
+import { fetchChannelFeed, normalizeChannels, scopeOf, scopePool, scopeAllowsLive, isQuietNow, fetchLiveVideoId, fetchChannelAvatar } from './modules/parser.js';
 
 const ALARM_NAME = 'checkYouTubeRSS';
 const BADGE_COLOR = '#dc2626';
@@ -22,7 +22,7 @@ async function migrateOnce() {
   await updateBadge();
 }
 
-export const DEFAULT_SETTINGS = { checkIntervalMin: 15, notifyMode: 'all', skipShorts: false };
+export const DEFAULT_SETTINGS = { checkIntervalMin: 15, notifyMode: 'all', skipShorts: false, quiet: { enabled: false, start: 23, end: 7 } };
 // notifyMode: 'all' (notification + badge) | 'badge' (badge only) | 'off'
 
 // Single choke point for channel reads: normalizes legacy corruption
@@ -42,6 +42,12 @@ async function getSettings() {
   if (![15, 30, 60, 120].includes(merged.checkIntervalMin)) merged.checkIntervalMin = 15;
   if (!['all', 'badge', 'off'].includes(merged.notifyMode)) merged.notifyMode = 'all';
   merged.skipShorts = merged.skipShorts === true;
+  const q = (merged.quiet && typeof merged.quiet === 'object') ? merged.quiet : {};
+  merged.quiet = {
+    enabled: q.enabled === true,
+    start: Number.isInteger(q.start) && q.start >= 0 && q.start <= 23 ? q.start : 23,
+    end: Number.isInteger(q.end) && q.end >= 0 && q.end <= 23 ? q.end : 7,
+  };
   return merged;
 }
 
@@ -177,10 +183,12 @@ async function notifyLive(channel, liveId) {
 }
 
 // Per-channel override (chNotify) wins over the global mode; 'default'/missing
-// means "follow global". Forward-compatible: C4 UI writes chNotify.
-function effectiveMode(ch, globalMode) {
+// means "follow global". Quiet hours downgrade any 'all' to 'badge'.
+function effectiveMode(ch, globalMode, quietActive = false) {
   const m = ch.chNotify && ch.chNotify !== 'default' ? ch.chNotify : globalMode;
-  return ['all', 'badge', 'off'].includes(m) ? m : 'all';
+  const base = ['all', 'badge', 'off'].includes(m) ? m : 'all';
+  if (quietActive && base === 'all') return 'badge';
+  return base;
 }
 
 async function notifyNewVideo(channel, video) {
@@ -214,7 +222,7 @@ async function notifyNewVideo(channel, video) {
 // Live detection: best effort, never fatal to the whole check.
 // Dual strategy inside fetchLiveVideoId; result diagnostics are stored
 // so the popup can show why a live stream was (not) seen.
-async function applyLiveCheck(base, notifyMode, now) {
+async function applyLiveCheck(base, notifyMode, now, quietActive = false) {
   if (!LIVE_ENABLED) {
     return { next: { ...base, isLive: false, liveVideoId: null }, counted: false, notified: false };
   }
@@ -234,7 +242,7 @@ async function applyLiveCheck(base, notifyMode, now) {
   let notified = false;
   if (liveId && base.lastNotifiedLiveId !== liveId) {
     next.lastNotifiedLiveId = liveId;
-    const effLive = effectiveMode(base, notifyMode);
+    const effLive = effectiveMode(base, notifyMode, quietActive);
     if (effLive !== 'off') {
       next.unread = (next.unread || base.unread || 0) + 1;
       counted = true;
@@ -249,13 +257,14 @@ async function applyLiveCheck(base, notifyMode, now) {
 
 async function probeOneChannelLive(channelId) {
   if (!LIVE_ENABLED) return { ok: false, error: 'disabled' };
-  const { notifyMode } = await getSettings();
+  const settings = await getSettings();
+  const { notifyMode } = settings;
   const channels = await getChannels();
   const idx = channels.findIndex((c) => c && c.id === channelId);
   if (idx < 0) return { ok: false, error: 'unknown-channel' };
   const now = new Date().toISOString();
   try {
-    const { next, counted, notified } = await applyLiveCheck(channels[idx], notifyMode, now);
+    const { next, counted, notified } = await applyLiveCheck(channels[idx], notifyMode, now, isQuietNow(settings));
     const updated = channels.slice();
     updated[idx] = next;
     await chrome.storage.local.set({ channels: updated });
@@ -278,7 +287,8 @@ async function probeOneChannelLive(channelId) {
 }
 
 async function checkNewVideos() {
-  const { notifyMode, skipShorts, checkIntervalMin } = await getSettings();
+  const { notifyMode, skipShorts, checkIntervalMin, quiet } = await getSettings();
+  const quietActive = isQuietNow({ quiet });
   const channels = await getChannels();
   if (!channels.length) {
     await updateBadge();
@@ -345,7 +355,7 @@ async function checkNewVideos() {
         next.lastPublished = latest.published;
         next.lastVideoUrl = latest.link;
         next.lastThumb = latest.thumb || ch.lastThumb || '';
-        const eff = effectiveMode(ch, notifyMode);
+        const eff = effectiveMode(ch, notifyMode, quietActive);
         if (eff !== 'off') {
           next.unread = (ch.unread || 0) + 1;
           newVideos += 1;
@@ -370,7 +380,7 @@ async function checkNewVideos() {
         }
       }
       try {
-        const { next: withLive, counted } = await applyLiveCheck(next, notifyMode, now);
+        const { next: withLive, counted } = await applyLiveCheck(next, notifyMode, now, quietActive);
         if (counted) newVideos += 1;
         updated.push(withLive);
       } catch (liveErr) {
