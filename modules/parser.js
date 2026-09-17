@@ -72,9 +72,10 @@ export function isQuietNow(settings, now = new Date()) {
 // Live detection (returns { liveId, via, debug }):
 //  1. /channel/ID/live — YouTube HTTP-redirects to a watch URL while live.
 //     Logged-out/cookie-less fetches (like this one) usually get a 200
-//     client-rendered skeleton instead of a redirect, so the body is scanned
-//     for a server-rendered ID as well. Consent/bot pages surface as via
-//     'consent'.
+//     page instead of a redirect, so the body is accepted ONLY via its
+//     canonical link pointing at a watch page. Loose "videoId" body matches
+//     are ignored (offline pages embed trailer IDs; live pages embed many
+//     unrelated IDs). Consent/bot pages surface as via 'consent'.
 //  2. InnerTube channel Live tab (youtubei/v1/browse, params EgJsaXZl) —
 //     JSON lists one tile per stream; currently-live tiles carry a
 //     thumbnailOverlayTimeStatusRenderer with style "LIVE". Verified against
@@ -106,8 +107,15 @@ export async function fetchLiveVideoId(channelId, fetchFn = fetch) {
       const m = url.match(/(?:[?&]v=|\/live\/|\/embed\/)([A-Za-z0-9_-]{11})/);
       if (m && m[1] !== 'live_stream') return { liveId: m[1], via: 'redirect', debug: url.slice(0, 120) };
       const html = await res.text();
-      const inline = extractInlineLiveId(html);
-      if (inline) return { liveId: inline, via: 'live-body', debug: '' };
+      // ONLY trustworthy body signal: canonical link pointing at a watch page.
+      // Loose "videoId" patterns were removed: an offline /live page returns
+      // HTTP 200 with a trailer/featured videoId in the body while its
+      // canonical is still the channel page (false-positive storm), and a
+      // live /live page body contains many unrelated videoIds (wrong-id risk).
+      const canon = typeof html === 'string'
+        ? html.match(/<link rel="canonical" href="https:\/\/www\.youtube\.com\/watch\?v=([A-Za-z0-9_-]{11})/)
+        : null;
+      if (canon && canon[1] !== 'live_stream') return { liveId: canon[1], via: 'live-body', debug: '' };
     }
   } catch {
     // Fall through to the Live-tab strategy.
@@ -117,22 +125,6 @@ export async function fetchLiveVideoId(channelId, fetchFn = fetch) {
   } catch {
     return { liveId: null, via: 'network', debug: '' };
   }
-}
-
-// Server-rendered ID inside a /live watch page (canonical link or player
-// config). The literal "live_stream" placeholder is never a video ID.
-function extractInlineLiveId(html) {
-  if (!html || typeof html !== 'string') return null;
-  const patterns = [
-    /<link rel="canonical" href="https:\/\/www\.youtube\.com\/watch\?v=([A-Za-z0-9_-]{11})/,
-    /"videoId":"([A-Za-z0-9_-]{11})"/,
-    /\\"videoId\\":\\"([A-Za-z0-9_-]{11})/,
-  ];
-  for (const re of patterns) {
-    const m = html.match(re);
-    if (m && m[1] !== 'live_stream') return m[1];
-  }
-  return null;
 }
 
 async function fetchLiveViaBrowse(channelId, fetchFn = fetch) {
