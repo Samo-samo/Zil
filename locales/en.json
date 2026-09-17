@@ -73,6 +73,9 @@
     "testDone": "Test notification sent (badge untouched).",
     "export": "Export backup",
     "import": "Import backup",
+    "restore": "Restore auto backup",
+    "restoreDone": "Auto backup restored.",
+    "restoreEmpty": "No auto backup yet.",
     "exportDone": "Backup exported.",
     "importDone": "Backup imported.",
     "importError": "Invalid backup file."

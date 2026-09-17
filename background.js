@@ -116,6 +116,30 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   return false;
 });
 
+const AUTO_BACKUP_MAX = 5;
+const AUTO_BACKUP_INTERVAL_MS = 24 * 3600 * 1000;
+
+// Silent daily snapshot (channels + settings + theme + ui), capped. Restored
+// from the popup's advanced settings; never prompts, never leaves the device.
+async function maybeAutoBackup(channels) {
+  try {
+    const stored = await chrome.storage.local.get(['autoBackups', 'settings', 'theme', 'ui']);
+    const backups = Array.isArray(stored.autoBackups) ? stored.autoBackups : [];
+    const lastAt = backups.length ? new Date(backups[backups.length - 1].at).getTime() : 0;
+    if (Date.now() - lastAt < AUTO_BACKUP_INTERVAL_MS) return;
+    backups.push({
+      at: new Date().toISOString(),
+      channels,
+      settings: stored.settings || {},
+      theme: stored.theme || 'light',
+      ui: stored.ui || {},
+    });
+    await chrome.storage.local.set({ autoBackups: backups.slice(-AUTO_BACKUP_MAX) });
+  } catch (err) {
+    console.warn('Zil: auto backup failed', err);
+  }
+}
+
 async function updateBadge() {
   try {
     const { notifyMode } = await getSettings();
@@ -373,5 +397,6 @@ async function checkNewVideos() {
 
   await chrome.storage.local.set({ channels: updated });
   await updateBadge();
+  await maybeAutoBackup(updated);
   return { ok: true, checked: channels.length - skipped, newVideos, skipped };
 }

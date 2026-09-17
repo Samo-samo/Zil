@@ -73,6 +73,9 @@
     "testDone": "Test bildirimi gönderildi (rozete dokunulmadı).",
     "export": "Yedeği dışa aktar",
     "import": "Yedeği içe aktar",
+    "restore": "Otomatik yedeği geri yükle",
+    "restoreDone": "Otomatik yedek geri yüklendi.",
+    "restoreEmpty": "Henüz otomatik yedek yok.",
     "exportDone": "Yedek dışa aktarıldı.",
     "importDone": "Yedek içe aktarıldı.",
     "importError": "Geçersiz yedek dosyası."

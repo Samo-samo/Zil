@@ -149,6 +149,28 @@ document.getElementById('importBtn').addEventListener('click', () => {
     document.getElementById('importFile').click();
 });
 
+document.getElementById('restoreBtn').addEventListener('click', async () => {
+    const { autoBackups = [] } = await chrome.storage.local.get(['autoBackups']);
+    if (!autoBackups.length) {
+        showBackupStatus('settings.restoreEmpty', 'No auto backup yet.', true);
+        return;
+    }
+    const snap = autoBackups[autoBackups.length - 1];
+    const patch = {};
+    if (Array.isArray(snap.channels)) patch.channels = snap.channels;
+    if (snap.settings && typeof snap.settings === 'object') patch.settings = snap.settings;
+    if (typeof snap.theme === 'string') patch.theme = snap.theme;
+    if (snap.ui && typeof snap.ui === 'object') patch.ui = snap.ui;
+    await chrome.storage.local.set(patch);
+    await loadSettings();
+    document.body.classList.toggle('dark', patch.theme === 'dark');
+    const dmToggle = document.getElementById('darkMode');
+    if (dmToggle) dmToggle.checked = patch.theme === 'dark';
+    await syncBadge();
+    await renderHome();
+    showBackupStatus('settings.restoreDone', 'Auto backup restored.');
+});
+
 document.getElementById('importFile').addEventListener('change', async (event) => {
     const file = event.target.files && event.target.files[0];
     event.target.value = '';
