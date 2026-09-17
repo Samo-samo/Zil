@@ -354,7 +354,12 @@ export async function resolveChannelId(input, fetchFn = fetch) {
     throw new Error('unresolvable');
   }
 
+  // The page HEAD may contain channelIds of OTHER channels (featured,
+  // trailer owner, topic links) BEFORE the owner's — e.g. @Halilcann's page
+  // lists UCPnDqNhD1e51rcRqucXEg0A first while the owner is UCjpDOkJ90wnesiVMyUMs5xA.
+  // The canonical link is authoritative for the page owner: check it first.
   const idPatterns = [
+    /<link rel="canonical" href="https:\/\/www\.youtube\.com\/channel\/(UC[A-Za-z0-9_-]{22})/,
     /"channelId":"(UC[A-Za-z0-9_-]{22})"/,
     /"externalId":"(UC[A-Za-z0-9_-]{22})"/,
     /"browseId":"(UC[A-Za-z0-9_-]{22})"/,

@@ -230,6 +230,7 @@ async function applyLiveCheck(base, notifyMode, now, quietActive = false) {
   const allowLive = scopeAllowsLive(scope);
   const live = allowLive ? await fetchLiveVideoId(base.id) : { liveId: null, via: 'filtered', debug: '' };
   const liveId = live && live.liveId ? live.liveId : null;
+  console.log(`Zil: live probe ${base.id} -> via=${live ? live.via : 'none'} liveId=${liveId || '-'}`);
   const next = {
     ...base,
     isLive: !!liveId,
