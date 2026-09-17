@@ -718,6 +718,7 @@ async function renderHome() {
         await renderChannelList();
     }
     await renderLiveStrip();
+    document.getElementById('channelSearchWrap').style.display = view === 'channels' ? 'block' : 'none';
 }
 
 async function renderVideoList() {
@@ -856,13 +857,21 @@ async function renderVideoList() {
     }
 }
 
+document.getElementById('channelSearch').addEventListener('input', () => {
+    renderHome();
+});
+
 async function renderChannelList() {
     const list = document.getElementById('channelList');
     const empty = document.getElementById('homeEmpty');
     const channels = await getChannels();
+    const query = (document.getElementById('channelSearch').value || '').trim().toLowerCase();
+    const visible = query
+        ? channels.filter((c) => (c.name || '').toLowerCase().includes(query) || (c.id || '').toLowerCase().includes(query))
+        : channels;
     list.textContent = '';
-    empty.style.display = channels.length ? 'none' : 'block';
-    for (const ch of channels) {
+    empty.style.display = visible.length ? 'none' : 'block';
+    for (const ch of visible) {
         const card = document.createElement('div');
         card.className = 'channel-card ch-card';
         const isOpen = expandedChannels.has(ch.id);

@@ -374,6 +374,10 @@ details .content {
     color: var(--text-main);
 }
 
+.search-wrap {
+    margin-top: 12px;
+}
+
 /* --- Live strip: single scrollable row, arrows instead of scrollbar --- */
 .live-strip-wrap {
     display: flex;
