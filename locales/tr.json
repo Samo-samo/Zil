@@ -74,6 +74,9 @@
       "off": "Kapalı"
     },
     "chDefault": "Genel ayarı kullan",
+    "chLiveDef": "Genel ayar",
+    "chLiveOn": "Kontrol et",
+    "chLiveOff": "Atla",
     "scopeDefault": "Genel ayar",
     "scopeAll": "Hepsi (video + Shorts + canlı)",
     "scopeVideos": "Sadece videolar",

@@ -74,6 +74,9 @@
       "off": "Off"
     },
     "chDefault": "Follow global setting",
+    "chLiveDef": "Follow global",
+    "chLiveOn": "Check live",
+    "chLiveOff": "Skip",
     "scopeDefault": "Follow global",
     "scopeAll": "Everything (videos + Shorts + live)",
     "scopeVideos": "Only videos",

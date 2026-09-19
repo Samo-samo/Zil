@@ -595,6 +595,18 @@ async function openChannelModal(channelId) {
         }
     ));
 
+    body.appendChild(selectRow(
+        `chLive-${ch.id}`,
+        t('home.liveCheck', 'Live check'),
+        CH_LIVE_ORDER.map((opt) => [opt, liveCheckLabel(opt)]),
+        CH_LIVE_ORDER.includes(ch.chLive) ? ch.chLive : 'default',
+        async (v) => {
+            const all = await getChannels();
+            await chrome.storage.local.set({ channels: all.map((c) => (c.id === ch.id ? { ...c, chLive: v } : c)) });
+            await renderHome();
+        }
+    ));
+
     document.getElementById('modalOverlay').hidden = false;
 }
 
@@ -602,6 +614,14 @@ document.getElementById('modalClose').addEventListener('click', closeChannelModa
 document.getElementById('modalOverlay').addEventListener('click', (e) => {
     if (e.target.id === 'modalOverlay') closeChannelModal();
 });
+
+const CH_LIVE_ORDER = ['default', 'on', 'off'];
+
+function liveCheckLabel(state) {
+    if (state === 'on') return t('settings.chLiveOn', 'Check live');
+    if (state === 'off') return t('settings.chLiveOff', 'Skip');
+    return t('settings.chLiveDef', 'Follow global');
+}
 
 function scopeLabel(state) {
     if (state === 'all') return t('settings.scopeAll', 'Everything');
