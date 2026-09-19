@@ -1,16 +1,14 @@
 import { lang } from './modules/localizator.js';
 import { resolveChannelId, fetchChannelFeed, normalizeChannels, isShorts, fetchChannelAvatar, scopeOf, scopePool, CH_SCOPE_ORDER } from './modules/parser.js';
 
-const DEFAULT_SETTINGS = { checkIntervalMin: 15, notifyMode: 'all', skipShorts: false, quiet: { enabled: false, start: 23, end: 7 } };
+const DEFAULT_SETTINGS = { checkIntervalMin: 15, notifyMode: 'all', skipShorts: false, quiet: { enabled: false, start: 23, end: 7 }, liveMode: 'auto', liveIntervalMin: 30 };
 const REFRESH_TIMEOUT_MS = 25000;
 
 let selectedLang = '';
 let uiStrings = {};
 let feedLimit = 25;
-
-// Mirror of background.js: all live UI stays hidden while detection is off.
-// See .ai/LIVE.md.
-const LIVE_ENABLED = true;
+// Cached global live mode ('off' hides all live UI). Refreshed in renderHome.
+let liveModeCache = 'auto';
 
 lang(selectedLang).then((strings) => { uiStrings = strings || {}; });
 
@@ -82,6 +80,8 @@ const skipShortsToggle = document.getElementById('skipShorts');
 const quietEnableToggle = document.getElementById('quietEnable');
 const quietStartSelect = document.getElementById('quietStart');
 const quietEndSelect = document.getElementById('quietEnd');
+const liveModeSelect = document.getElementById('liveMode');
+const liveIntervalSelect = document.getElementById('liveInterval');
 
 function fillHourOptions(select) {
     for (let h = 0; h < 24; h++) {
@@ -105,6 +105,8 @@ async function loadSettings() {
     if (quietEnableToggle) quietEnableToggle.checked = q.enabled === true;
     if (quietStartSelect) quietStartSelect.value = String(Number.isInteger(q.start) ? q.start : 23);
     if (quietEndSelect) quietEndSelect.value = String(Number.isInteger(q.end) ? q.end : 7);
+    if (liveModeSelect) liveModeSelect.value = ['off', 'auto', 'manual'].includes(merged.liveMode) ? merged.liveMode : 'auto';
+    if (liveIntervalSelect) liveIntervalSelect.value = String([15, 30, 60, 120].includes(merged.liveIntervalMin) ? merged.liveIntervalMin : 30);
 }
 
 async function saveSettings() {
@@ -117,6 +119,8 @@ async function saveSettings() {
             start: quietStartSelect ? Number(quietStartSelect.value) : 23,
             end: quietEndSelect ? Number(quietEndSelect.value) : 7,
         },
+        liveMode: liveModeSelect ? liveModeSelect.value : 'auto',
+        liveIntervalMin: liveIntervalSelect ? Number(liveIntervalSelect.value) || 30 : 30,
     };
     await chrome.storage.local.set({ settings });
     // Background rebuilds the alarm via storage.onChanged.
@@ -128,6 +132,8 @@ if (skipShortsToggle) skipShortsToggle.addEventListener('change', saveSettings);
 if (quietEnableToggle) quietEnableToggle.addEventListener('change', saveSettings);
 if (quietStartSelect) quietStartSelect.addEventListener('change', saveSettings);
 if (quietEndSelect) quietEndSelect.addEventListener('change', saveSettings);
+if (liveModeSelect) liveModeSelect.addEventListener('change', saveSettings);
+if (liveIntervalSelect) liveIntervalSelect.addEventListener('change', saveSettings);
 
 await loadSettings();
 
@@ -708,6 +714,9 @@ async function renderLiveStrip() {
 async function renderHome() {
     closeCardMenu();
     const view = await getView();
+    const { settings = {} } = await chrome.storage.local.get(['settings']);
+    const merged = { ...DEFAULT_SETTINGS, ...settings };
+    liveModeCache = ['off', 'auto', 'manual'].includes(merged.liveMode) ? merged.liveMode : 'auto';
     document.getElementById('viewVideosBtn').classList.toggle('active', view === 'videos');
     document.getElementById('viewChannelsBtn').classList.toggle('active', view === 'channels');
     document.getElementById('videoList').style.display = view === 'videos' ? 'flex' : 'none';
@@ -822,7 +831,7 @@ async function renderVideoList() {
         const pills = document.createElement('div');
         pills.className = 'pill-row';
         let hasPill = false;
-        if (LIVE_ENABLED && item.liveHere) {
+        if (liveModeCache !== 'off' && item.liveHere) {
             const live = document.createElement('span');
             live.className = 'live-btn';
             const liveDot = document.createElement('span');
@@ -914,7 +923,7 @@ async function renderChannelList() {
             name.appendChild(dot);
         }
         headText.appendChild(name);
-        if (LIVE_ENABLED && ch.isLive && ch.liveVideoId) {
+        if (liveModeCache !== 'off' && ch.isLive && ch.liveVideoId) {
             const lm = document.createElement('span');
             lm.className = 'live-mini';
             lm.textContent = t('home.live', 'LIVE');
@@ -991,7 +1000,7 @@ async function renderChannelList() {
             liveRow.appendChild(liveK);
             liveRow.appendChild(liveV);
             if (ch.liveDebug) liveV.title = ch.liveDebug;
-            if (LIVE_ENABLED) detail.appendChild(liveRow);
+            if (liveModeCache !== 'off') detail.appendChild(liveRow);
 
             const actions = document.createElement('div');
             actions.className = 'ch-actions';
@@ -1008,7 +1017,7 @@ async function renderChannelList() {
             delBtn.textContent = t('home.remove', 'Remove channel');
             delBtn.addEventListener('click', () => removeChannel(ch.id));
             let liveBtn = null;
-            if (LIVE_ENABLED) {
+            if (liveModeCache !== 'off') {
             liveBtn = document.createElement('button');
             liveBtn.className = 'mini-btn';
             liveBtn.textContent = t('home.checkLive', 'Check live');
@@ -1027,7 +1036,7 @@ async function renderChannelList() {
             }
             actions.appendChild(openBtn);
             actions.appendChild(custBtn);
-            if (LIVE_ENABLED) actions.appendChild(liveBtn);
+            if (liveModeCache !== 'off') actions.appendChild(liveBtn);
             actions.appendChild(delBtn);
             detail.appendChild(actions);
 
@@ -1094,7 +1103,7 @@ async function renderChannelList() {
 }
 
 chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'local' && changes.channels) {
+    if (area === 'local' && (changes.channels || changes.settings)) {
         renderHome();
     }
 });

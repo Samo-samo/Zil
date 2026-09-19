@@ -51,6 +51,15 @@
       "from": "From",
       "to": "To"
     },
+    "live": {
+      "label": "Live detection",
+      "auto": "Auto (on for all)",
+      "manual": "Manual (per channel)",
+      "off": "Off"
+    },
+    "liveInterval": {
+      "label": "Live check interval"
+    },
     "interval": {
       "label": "Check interval",
       "o15": "Every 15 minutes",

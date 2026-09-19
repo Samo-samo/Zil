@@ -51,6 +51,15 @@
       "from": "Başlangıç",
       "to": "Bitiş"
     },
+    "live": {
+      "label": "Canlı tespiti",
+      "auto": "Otomatik (tümü açık)",
+      "manual": "Manuel (kanal bazında)",
+      "off": "Kapalı"
+    },
+    "liveInterval": {
+      "label": "Canlı kontrol aralığı"
+    },
     "interval": {
       "label": "Kontrol aralığı",
       "o15": "15 dakikada bir",

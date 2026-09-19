@@ -123,6 +123,29 @@
                         <svg class="select-arrow" xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
                     </div>
                 </div>
+                <div class="flex setting-row">
+                    <label for="liveMode" data-i18n="settings.live.label">Live detection</label>
+                    <div class="select-wrapper">
+                        <select name="liveMode" id="liveMode">
+                            <option value="auto" data-i18n="settings.live.auto">Auto (on for all)</option>
+                            <option value="manual" data-i18n="settings.live.manual">Manual (per channel)</option>
+                            <option value="off" data-i18n="settings.live.off">Off</option>
+                        </select>
+                        <svg class="select-arrow" xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </div>
+                </div>
+                <div class="flex setting-row">
+                    <label for="liveInterval" data-i18n="settings.liveInterval.label">Live check interval</label>
+                    <div class="select-wrapper">
+                        <select name="liveInterval" id="liveInterval">
+                            <option value="15" data-i18n="settings.interval.o15">Every 15 minutes</option>
+                            <option value="30" data-i18n="settings.interval.o30">Every 30 minutes</option>
+                            <option value="60" data-i18n="settings.interval.o60">Every hour</option>
+                            <option value="120" data-i18n="settings.interval.o120">Every 2 hours</option>
+                        </select>
+                        <svg class="select-arrow" xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </div>
+                </div>
                 <div class="setting-row">
                     <button id="testNotifBtn" class="btn secondary" data-i18n="settings.testNotif">Send test notification</button>
                 </div>

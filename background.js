@@ -4,11 +4,6 @@ const ALARM_NAME = 'checkYouTubeRSS';
 const BADGE_COLOR = '#dc2626';
 const NOTIF_ICON = 'icons/bell-notif-128.png';
 
-// Live detection is DISABLED: it catches real lives but flags every channel
-// as live (false-positive storm). See .ai/LIVE.md. While false, checks clear
-// stale isLive flags instead of probing.
-const LIVE_ENABLED = true;
-
 // One-time cleanup of the false-positive era: drop stale live flags (and the
 // notified marker, so a genuinely-live channel notifies once on re-enable).
 async function migrateOnce() {
@@ -22,8 +17,9 @@ async function migrateOnce() {
   await updateBadge();
 }
 
-export const DEFAULT_SETTINGS = { checkIntervalMin: 15, notifyMode: 'all', skipShorts: false, quiet: { enabled: false, start: 23, end: 7 } };
+export const DEFAULT_SETTINGS = { checkIntervalMin: 15, notifyMode: 'all', skipShorts: false, quiet: { enabled: false, start: 23, end: 7 }, liveMode: 'auto', liveIntervalMin: 30 };
 // notifyMode: 'all' (notification + badge) | 'badge' (badge only) | 'off'
+// liveMode: 'off' (no live checks at all) | 'auto' (all channels unless chLive==='off') | 'manual' (only chLive==='on')
 
 // Single choke point for channel reads: normalizes legacy corruption
 // (non-array 'channels' value) and heals storage on the spot.
@@ -42,6 +38,8 @@ async function getSettings() {
   if (![15, 30, 60, 120].includes(merged.checkIntervalMin)) merged.checkIntervalMin = 15;
   if (!['all', 'badge', 'off'].includes(merged.notifyMode)) merged.notifyMode = 'all';
   merged.skipShorts = merged.skipShorts === true;
+  if (!['off', 'auto', 'manual'].includes(merged.liveMode)) merged.liveMode = 'auto';
+  if (![15, 30, 60, 120].includes(merged.liveIntervalMin)) merged.liveIntervalMin = 30;
   const q = (merged.quiet && typeof merged.quiet === 'object') ? merged.quiet : {};
   merged.quiet = {
     enabled: q.enabled === true,
@@ -222,27 +220,26 @@ async function notifyNewVideo(channel, video) {
 // A video check is one tiny RSS fetch (~50-100KB static XML). A live probe is
 // a channel HTML page (~1MB) plus an InnerTube JSON (~1MB) — roughly 25x the
 // traffic and far more bot-mitigation attention. So live probes are throttled
-// per channel; video checks always run. Manual probes bypass the throttle.
-const LIVE_MIN_INTERVAL_MS = 30 * 60 * 1000;
-
-async function applyLiveCheck(base, notifyMode, now, quietActive = false, force = false) {
-  if (!LIVE_ENABLED) {
+// per channel (settings.liveIntervalMin); video checks always run. Manual
+// probes bypass the throttle.
+async function applyLiveCheck(base, live, notifyMode, now, quietActive = false, force = false) {
+  if (live.mode === 'off') {
     return { next: { ...base, isLive: false, liveVideoId: null }, counted: false, notified: false };
   }
-  if (!force && base.liveCheckedAt && Date.parse(now) - new Date(base.liveCheckedAt).getTime() < LIVE_MIN_INTERVAL_MS) {
+  if (!force && base.liveCheckedAt && Date.parse(now) - new Date(base.liveCheckedAt).getTime() < live.intervalMin * 60000) {
     return { next: { ...base }, counted: false, notified: false, throttled: true };
   }
   const scope = scopeOf(base);
-  const allowLive = scopeAllowsLive(scope);
-  const live = allowLive ? await fetchLiveVideoId(base.id) : { liveId: null, via: 'filtered', debug: '' };
-  const liveId = live && live.liveId ? live.liveId : null;
-  console.log(`Zil: live probe ${base.id} -> via=${live ? live.via : 'none'} liveId=${liveId || '-'}`);
+  const allowLive = scopeAllowsLive(scope) && (live.mode !== 'manual' || base.chLive === 'on') && base.chLive !== 'off';
+  const probe = allowLive ? await fetchLiveVideoId(base.id) : { liveId: null, via: 'filtered', debug: '' };
+  const liveId = probe && probe.liveId ? probe.liveId : null;
+  console.log(`Zil: live probe ${base.id} -> via=${probe ? probe.via : 'none'} liveId=${liveId || '-'}`);
   const next = {
     ...base,
     isLive: !!liveId,
     liveVideoId: liveId,
-    liveVia: live ? live.via : 'none',
-    liveDebug: live && live.debug ? live.debug : '',
+    liveVia: probe ? probe.via : 'none',
+    liveDebug: probe && probe.debug ? probe.debug : '',
     liveCheckedAt: now,
   };
   let counted = false;
@@ -263,15 +260,15 @@ async function applyLiveCheck(base, notifyMode, now, quietActive = false, force 
 }
 
 async function probeOneChannelLive(channelId) {
-  if (!LIVE_ENABLED) return { ok: false, error: 'disabled' };
   const settings = await getSettings();
   const { notifyMode } = settings;
+  const live = { mode: settings.liveMode, intervalMin: settings.liveIntervalMin };
   const channels = await getChannels();
   const idx = channels.findIndex((c) => c && c.id === channelId);
   if (idx < 0) return { ok: false, error: 'unknown-channel' };
   const now = new Date().toISOString();
   try {
-    const { next, counted, notified } = await applyLiveCheck(channels[idx], notifyMode, now, isQuietNow(settings), true);
+    const { next, counted, notified } = await applyLiveCheck(channels[idx], live, notifyMode, now, isQuietNow(settings), true);
     const updated = channels.slice();
     updated[idx] = next;
     await chrome.storage.local.set({ channels: updated });
@@ -294,8 +291,9 @@ async function probeOneChannelLive(channelId) {
 }
 
 async function checkNewVideos() {
-  const { notifyMode, skipShorts, checkIntervalMin, quiet } = await getSettings();
+  const { notifyMode, skipShorts, checkIntervalMin, quiet, liveMode, liveIntervalMin } = await getSettings();
   const quietActive = isQuietNow({ quiet });
+  const live = { mode: liveMode, intervalMin: liveIntervalMin };
   const channels = await getChannels();
   if (!channels.length) {
     await updateBadge();
@@ -387,7 +385,7 @@ async function checkNewVideos() {
         }
       }
       try {
-        const { next: withLive, counted } = await applyLiveCheck(next, notifyMode, now, quietActive);
+        const { next: withLive, counted } = await applyLiveCheck(next, live, notifyMode, now, quietActive);
         if (counted) newVideos += 1;
         updated.push(withLive);
       } catch (liveErr) {
