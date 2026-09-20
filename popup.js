@@ -109,7 +109,15 @@ async function loadSettings() {
     if (liveModeSelect) liveModeSelect.value = ['off', 'auto', 'manual'].includes(merged.liveMode) ? merged.liveMode : 'auto';
     if (liveIntervalSelect) liveIntervalSelect.value = String([15, 30, 60, 120].includes(merged.liveIntervalMin) ? merged.liveIntervalMin : 30);
     if (importantBypassToggle) importantBypassToggle.checked = merged.importantBypassQuiet !== false;
+    updateLiveIntervalState();
     await renderRules();
+}
+
+function updateLiveIntervalState() {
+    const row = document.getElementById('liveIntervalRow');
+    const mode = liveModeSelect ? liveModeSelect.value : 'auto';
+    if (row) row.classList.toggle('is-disabled', mode === 'off');
+    if (liveIntervalSelect) liveIntervalSelect.disabled = mode === 'off';
 }
 
 async function saveSettings() {
@@ -136,7 +144,10 @@ if (skipShortsToggle) skipShortsToggle.addEventListener('change', saveSettings);
 if (quietEnableToggle) quietEnableToggle.addEventListener('change', saveSettings);
 if (quietStartSelect) quietStartSelect.addEventListener('change', saveSettings);
 if (quietEndSelect) quietEndSelect.addEventListener('change', saveSettings);
-if (liveModeSelect) liveModeSelect.addEventListener('change', saveSettings);
+if (liveModeSelect) {
+    liveModeSelect.addEventListener('change', saveSettings);
+    liveModeSelect.addEventListener('change', updateLiveIntervalState);
+}
 if (liveIntervalSelect) liveIntervalSelect.addEventListener('change', saveSettings);
 if (importantBypassToggle) importantBypassToggle.addEventListener('change', saveSettings);
 
@@ -182,6 +193,11 @@ async function renderRules() {
         row.appendChild(meta);
         row.appendChild(del);
         list.appendChild(row);
+    }
+    const badge = document.getElementById('ruleCount');
+    if (badge) {
+        badge.textContent = String(rules.length);
+        badge.classList.toggle('has-rules', rules.length > 0);
     }
 }
 

@@ -72,9 +72,9 @@
             <input type="checkbox" name="darkMode" id="darkMode" class="check">
         </div>
 
-        <details>
+        <details class="settings-group">
             <summary>
-                <span data-i18n="settings.advanced">Advanced Settings</span>
+                <span data-i18n="settings.groups.checks">Checks</span>
                 <svg class="details-arrow" xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
             </summary>
             <div class="content">
@@ -91,39 +91,6 @@
                     </div>
                 </div>
                 <div class="flex setting-row">
-                    <label for="notifyMode" data-i18n="settings.mode.label">Notifications</label>
-                    <div class="select-wrapper">
-                        <select name="notifyMode" id="notifyMode">
-                            <option value="all" data-i18n="settings.mode.all">Notification + badge</option>
-                            <option value="badge" data-i18n="settings.mode.badge">Badge only</option>
-                            <option value="off" data-i18n="settings.mode.off">Off</option>
-                        </select>
-                        <svg class="select-arrow" xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                    </div>
-                </div>
-                <div class="flex setting-row">
-                    <label for="skipShorts" data-i18n="settings.shorts">Skip Shorts</label>
-                    <input type="checkbox" name="skipShorts" id="skipShorts" class="check">
-                </div>
-                <div class="flex setting-row">
-                    <label for="quietEnable" data-i18n="settings.quiet.label">Quiet hours</label>
-                    <input type="checkbox" name="quietEnable" id="quietEnable" class="check">
-                </div>
-                <div class="flex setting-row">
-                    <label for="quietStart" data-i18n="settings.quiet.from">From</label>
-                    <div class="select-wrapper">
-                        <select name="quietStart" id="quietStart"></select>
-                        <svg class="select-arrow" xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                    </div>
-                </div>
-                <div class="flex setting-row">
-                    <label for="quietEnd" data-i18n="settings.quiet.to">To</label>
-                    <div class="select-wrapper">
-                        <select name="quietEnd" id="quietEnd"></select>
-                        <svg class="select-arrow" xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                    </div>
-                </div>
-                <div class="flex setting-row">
                     <label for="liveMode" data-i18n="settings.live.label">Live detection</label>
                     <div class="select-wrapper">
                         <select name="liveMode" id="liveMode">
@@ -134,7 +101,7 @@
                         <svg class="select-arrow" xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
                     </div>
                 </div>
-                <div class="flex setting-row">
+                <div class="flex setting-row" id="liveIntervalRow">
                     <label for="liveInterval" data-i18n="settings.liveInterval.label">Live check interval</label>
                     <div class="select-wrapper">
                         <select name="liveInterval" id="liveInterval">
@@ -146,27 +113,43 @@
                         <svg class="select-arrow" xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
                     </div>
                 </div>
-                <div class="setting-row">
-                    <div class="section-label" data-i18n="settings.rulesTitle">Title rules</div>
-                    <div id="ruleList"></div>
-                    <div class="flex" style="gap: 8px; margin-top: 8px;">
-                        <input type="text" id="ruleInput" class="grow" data-i18n-placeholder="settings.rulePlaceholder" placeholder="Pattern, e.g. shorts|trailer">
-                    </div>
-                    <div class="flex" style="gap: 8px; margin-top: 8px;">
-                        <select id="ruleField">
-                            <option value="title" data-i18n="settings.ruleFieldTitle">Title</option>
-                            <option value="channel" data-i18n="settings.ruleFieldChannel">Channel</option>
-                            <option value="both" data-i18n="settings.ruleFieldBoth">Both</option>
+            </div>
+        </details>
+        <details class="settings-group">
+            <summary>
+                <span data-i18n="settings.groups.notifications">Notifications</span>
+                <svg class="details-arrow" xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </summary>
+            <div class="content">
+                <div class="flex setting-row">
+                    <label for="notifyMode" data-i18n="settings.mode.label">Notifications</label>
+                    <div class="select-wrapper">
+                        <select name="notifyMode" id="notifyMode">
+                            <option value="all" data-i18n="settings.mode.all">Notification + badge</option>
+                            <option value="badge" data-i18n="settings.mode.badge">Badge only</option>
+                            <option value="off" data-i18n="settings.mode.off">Off</option>
                         </select>
-                        <select id="ruleAction">
-                            <option value="block" data-i18n="settings.ruleBlock">Block</option>
-                            <option value="notify" data-i18n="settings.ruleNotify">Notify</option>
-                            <option value="important" data-i18n="settings.ruleImportant">Important</option>
-                        </select>
-                        <button id="ruleAddBtn" class="btn secondary grow" data-i18n="settings.ruleAdd">Add</button>
+                        <svg class="select-arrow" xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
                     </div>
-                    <div class="setting-row">
-                        <button id="ruleTestBtn" class="btn secondary" data-i18n="settings.ruleTest">Test rules</button>
+                </div>
+                <div class="flex setting-row">
+                    <label for="quietEnable" data-i18n="settings.quiet.label">Quiet hours</label>
+                    <input type="checkbox" name="quietEnable" id="quietEnable" class="check">
+                </div>
+                <div class="sub-group" id="quietSub">
+                    <div class="flex setting-row">
+                        <label for="quietStart" data-i18n="settings.quiet.from">From</label>
+                        <div class="select-wrapper">
+                            <select name="quietStart" id="quietStart"></select>
+                            <svg class="select-arrow" xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </div>
+                    </div>
+                    <div class="flex setting-row">
+                        <label for="quietEnd" data-i18n="settings.quiet.to">To</label>
+                        <div class="select-wrapper">
+                            <select name="quietEnd" id="quietEnd"></select>
+                            <svg class="select-arrow" xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </div>
                     </div>
                 </div>
                 <div class="flex setting-row">
@@ -174,15 +157,69 @@
                     <input type="checkbox" name="importantBypass" id="importantBypass" class="check">
                 </div>
                 <div class="setting-row">
-                    <button id="testNotifBtn" class="btn secondary" data-i18n="settings.testNotif">Send test notification</button>
+                    <button id="testNotifBtn" class="btn secondary btn-block" data-i18n="settings.testNotif">Send test notification</button>
                 </div>
+            </div>
+        </details>
+        <details class="settings-group">
+            <summary>
+                <span data-i18n="settings.groups.content">Content</span>
+                <svg class="details-arrow" xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </summary>
+            <div class="content">
                 <div class="flex setting-row">
+                    <label for="skipShorts" data-i18n="settings.shorts">Skip Shorts</label>
+                    <input type="checkbox" name="skipShorts" id="skipShorts" class="check">
+                </div>
+                <p class="hint" data-i18n="settings.contentHint">Fine-tune per video with Title Rules below.</p>
+            </div>
+        </details>
+        <details class="settings-group" id="groupRules">
+            <summary>
+                <span data-i18n="settings.groups.rules">Title Rules</span>
+                <span id="ruleCount" class="group-badge">0</span>
+                <svg class="details-arrow" xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </summary>
+            <div class="content">
+                <div id="ruleList" class="rules-scroll"></div>
+                <input type="text" id="ruleInput" class="grow" data-i18n-placeholder="settings.rulePlaceholder" placeholder="Pattern, e.g. shorts|trailer">
+                <div class="flex rules-form-row">
+                    <div class="select-wrapper">
+                        <select id="ruleField">
+                            <option value="title" data-i18n="settings.ruleFieldTitle">Title</option>
+                            <option value="channel" data-i18n="settings.ruleFieldChannel">Channel</option>
+                            <option value="both" data-i18n="settings.ruleFieldBoth">Both</option>
+                        </select>
+                        <svg class="select-arrow" xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </div>
+                    <div class="select-wrapper">
+                        <select id="ruleAction">
+                            <option value="block" data-i18n="settings.ruleBlock">Block</option>
+                            <option value="notify" data-i18n="settings.ruleNotify">Notify</option>
+                            <option value="important" data-i18n="settings.ruleImportant">Important</option>
+                        </select>
+                        <svg class="select-arrow" xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </div>
+                    <button id="ruleAddBtn" class="btn secondary grow" data-i18n="settings.ruleAdd">Add</button>
+                </div>
+                <div class="setting-row">
+                    <button id="ruleTestBtn" class="btn secondary btn-block" data-i18n="settings.ruleTest">Test rules</button>
+                </div>
+            </div>
+        </details>
+        <details class="settings-group">
+            <summary>
+                <span data-i18n="settings.groups.backup">Backup</span>
+                <svg class="details-arrow" xmlns="http://w3.org" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </summary>
+            <div class="content">
+                <div class="flex setting-row btn-row">
                     <button id="exportBtn" class="btn secondary grow" data-i18n="settings.export">Export backup</button>
                     <button id="importBtn" class="btn secondary grow" data-i18n="settings.import">Import backup</button>
                     <input type="file" id="importFile" accept="application/json,.json" hidden>
                 </div>
                 <div class="setting-row">
-                    <button id="restoreBtn" class="btn secondary" data-i18n="settings.restore">Restore auto backup</button>
+                    <button id="restoreBtn" class="btn secondary btn-block" data-i18n="settings.restore">Restore auto backup</button>
                 </div>
                 <p id="backupStatus" class="muted" hidden></p>
             </div>

@@ -46,6 +46,14 @@
       "tr": "Turkish"
     },
     "advanced": "Advanced",
+    "groups": {
+      "checks": "Checks",
+      "notifications": "Notifications",
+      "content": "Content",
+      "rules": "Title Rules",
+      "backup": "Backup"
+    },
+    "contentHint": "Fine-tune per video with Title Rules below.",
     "darkMode": "Dark Mode",
     "shorts": "Skip Shorts",
     "quiet": {

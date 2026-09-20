@@ -46,6 +46,14 @@
       "tr": "Türkçe"
     },
     "advanced": "Gelişmiş",
+    "groups": {
+      "checks": "Kontroller",
+      "notifications": "Bildirimler",
+      "content": "İçerik",
+      "rules": "Başlık Kuralları",
+      "backup": "Yedek"
+    },
+    "contentHint": "Video bazında ince ayar için aşağıdaki Başlık Kuralları'nı kullanın.",
     "darkMode": "Karanlık Mod",
     "shorts": "Shorts'ları atla",
     "quiet": {

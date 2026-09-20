@@ -960,3 +960,97 @@ button.btn.secondary:hover {
 @keyframes blink {
     50% { opacity: 0.35; }
 }
+
+/* --- Settings groups --- */
+.settings-group {
+    margin-top: 8px;
+}
+
+.settings-group summary span:first-child {
+    flex-grow: 1;
+}
+
+.group-badge {
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    margin-right: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50px;
+    background: var(--bg-btn-hover);
+    color: var(--text-muted);
+    font-size: var(--fs-xs);
+    font-weight: 700;
+}
+
+.group-badge.has-rules {
+    background: var(--primary);
+    color: #fff;
+}
+
+.settings-group .content {
+    padding: 10px 14px 14px;
+}
+
+.sub-group {
+    margin: 4px 0 4px 12px;
+    padding-left: 12px;
+    border-left: 2px solid var(--border-color);
+}
+
+.sub-row.is-disabled {
+    opacity: 0.45;
+}
+
+.hint {
+    margin: 8px 0 0;
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+}
+
+.btn-block {
+    width: 100%;
+}
+
+.btn-row {
+    gap: 8px;
+}
+
+/* --- Rules: contained scroll so a long list never pushes Backup off-screen --- */
+.rules-scroll {
+    max-height: 168px;
+    overflow-y: auto;
+    margin: 2px -4px 10px;
+    padding: 0 4px;
+    scrollbar-width: thin;
+}
+
+.rules-scroll:empty {
+    display: none;
+}
+
+#ruleInput {
+    margin-bottom: 8px;
+}
+
+.rules-form-row {
+    gap: 8px;
+}
+
+.rules-form-row select {
+    max-width: 110px;
+}
+
+.rule-row {
+    gap: 8px;
+}
+
+.rule-pattern {
+    min-width: 0;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 4px 8px;
+}
