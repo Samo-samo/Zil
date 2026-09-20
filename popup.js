@@ -7,6 +7,7 @@ const REFRESH_TIMEOUT_MS = 25000;
 let selectedLang = '';
 let uiStrings = {};
 let feedLimit = 25;
+let importantOnly = false;
 // Cached global live mode ('off' hides all live UI). Refreshed in renderHome.
 let liveModeCache = 'auto';
 
@@ -194,9 +195,9 @@ function optionSelect(values, labelFn, current) {
 
 // Shared view/edit rule row for the global list and the channel modal.
 // onSave(updatedRule) persists; rerender() rebuilds the owning list.
-function buildRuleRow(r, { onSave, onDelete, rerender }) {
+function buildRuleRow(r, { index, total, onSave, onDelete, onMove, onToggle, rerender }) {
     const row = document.createElement('div');
-    row.className = 'flex rule-row m-rule';
+    row.className = 'flex rule-row m-rule' + (r.enabled === false ? ' is-disabled' : '');
     const text = document.createElement('span');
     text.className = 'grow rule-pattern';
     text.textContent = r.pattern;
@@ -205,6 +206,23 @@ function buildRuleRow(r, { onSave, onDelete, rerender }) {
     meta.className = 'muted small m-rule-meta';
     meta.appendChild(ruleActionPill(r.action));
     meta.appendChild(document.createTextNode(` · ${ruleFieldLabel(r.field)}`));
+    const toggle = document.createElement('button');
+    toggle.className = 'icon-btn small' + (r.enabled === false ? ' dimmed' : '');
+    toggle.title = t('home.ruleToggle', 'Enable/disable rule');
+    toggle.textContent = r.enabled === false ? '○' : '✓';
+    toggle.addEventListener('click', () => onToggle(r.id));
+    const up = document.createElement('button');
+    up.className = 'icon-btn small';
+    up.title = t('home.ruleUp', 'Move up');
+    up.textContent = '▲';
+    up.disabled = index === 0;
+    up.addEventListener('click', () => onMove(r.id, -1));
+    const down = document.createElement('button');
+    down.className = 'icon-btn small';
+    down.title = t('home.ruleDown', 'Move down');
+    down.textContent = '▼';
+    down.disabled = index >= total - 1;
+    down.addEventListener('click', () => onMove(r.id, 1));
     const edit = document.createElement('button');
     edit.className = 'icon-btn small m-edit';
     edit.title = t('home.editRule', 'Edit rule');
@@ -217,6 +235,9 @@ function buildRuleRow(r, { onSave, onDelete, rerender }) {
     del.addEventListener('click', onDelete);
     row.appendChild(text);
     row.appendChild(meta);
+    row.appendChild(toggle);
+    row.appendChild(up);
+    row.appendChild(down);
     row.appendChild(edit);
     row.appendChild(del);
     return row;
@@ -269,8 +290,10 @@ async function renderRules() {
     const { settings = {} } = await chrome.storage.local.get(['settings']);
     const rules = Array.isArray(settings.rules) ? settings.rules : [];
     list.textContent = '';
-    for (const r of rules) {
+    rules.forEach((r, index) => {
         list.appendChild(buildRuleRow(r, {
+            index,
+            total: rules.length,
             onSave: async (updated) => {
                 const cur = await chrome.storage.local.get(['settings']);
                 const all = Array.isArray(cur.settings && cur.settings.rules) ? cur.settings.rules : [];
@@ -282,9 +305,25 @@ async function renderRules() {
                 await chrome.storage.local.set({ settings: { ...(cur.settings || {}), rules: all.filter((x) => x && x.id !== r.id) } });
                 await renderRules();
             },
+            onMove: async (id, dir) => {
+                const cur = await chrome.storage.local.get(['settings']);
+                const all = Array.isArray(cur.settings && cur.settings.rules) ? [...cur.settings.rules] : [];
+                const from = all.findIndex((x) => x && x.id === id);
+                const to = from + dir;
+                if (from < 0 || to < 0 || to >= all.length) return;
+                [all[from], all[to]] = [all[to], all[from]];
+                await chrome.storage.local.set({ settings: { ...(cur.settings || {}), rules: all } });
+                await renderRules();
+            },
+            onToggle: async (id) => {
+                const cur = await chrome.storage.local.get(['settings']);
+                const all = Array.isArray(cur.settings && cur.settings.rules) ? cur.settings.rules : [];
+                await chrome.storage.local.set({ settings: { ...(cur.settings || {}), rules: all.map((x) => (x && x.id === id ? { ...x, enabled: x.enabled === false } : x)) } });
+                await renderRules();
+            },
             rerender: renderRules,
         }));
-    }
+    });
     const badge = document.getElementById('ruleCount');
     if (badge) {
         badge.textContent = String(rules.length);
@@ -864,8 +903,10 @@ async function openChannelModal(channelId) {
         const cur = all.find((c) => c.id === ch.id);
         const crules = cur && Array.isArray(cur.rules) ? cur.rules : [];
         mRuleList.textContent = '';
-        for (const r of crules) {
+        crules.forEach((r, index) => {
             mRuleList.appendChild(buildRuleRow(r, {
+                index,
+                total: crules.length,
                 onSave: async (updated) => {
                     const latest = await getChannels();
                     const found = latest.find((c) => c.id === ch.id);
@@ -881,9 +922,29 @@ async function openChannelModal(channelId) {
                     await persistChannelRules(rest);
                     await renderModalRules();
                 },
+                onMove: async (id, dir) => {
+                    const latest = await getChannels();
+                    const found = latest.find((c) => c.id === ch.id);
+                    const rest = found && Array.isArray(found.rules) ? [...found.rules] : [];
+                    const from = rest.findIndex((x) => x && x.id === id);
+                    const to = from + dir;
+                    if (from < 0 || to < 0 || to >= rest.length) return;
+                    [rest[from], rest[to]] = [rest[to], rest[from]];
+                    await persistChannelRules(rest);
+                    await renderModalRules();
+                },
+                onToggle: async (id) => {
+                    const latest = await getChannels();
+                    const found = latest.find((c) => c.id === ch.id);
+                    const rest = found && Array.isArray(found.rules)
+                        ? found.rules.map((x) => (x && x.id === id ? { ...x, enabled: x.enabled === false } : x))
+                        : [];
+                    await persistChannelRules(rest);
+                    await renderModalRules();
+                },
                 rerender: renderModalRules,
             }));
-        }
+        });
         mRuleBadge.textContent = String(crules.length);
         mRuleBadge.classList.toggle('has-rules', crules.length > 0);
         mEmpty.hidden = crules.length > 0;
@@ -928,6 +989,10 @@ async function openChannelModal(channelId) {
     mRuleAddRow.appendChild(mActionWrap);
     mRuleAddRow.appendChild(mAddBtn);
     body.appendChild(mRuleAddRow);
+    const mHint = document.createElement('p');
+    mHint.className = 'hint';
+    mHint.textContent = `${t('settings.ruleOrderHint', 'First match wins.')} ${t('settings.ruleMatchHint', 'Patterns match anywhere inside the text.')}`;
+    body.appendChild(mHint);
 
     await renderModalRules();
 
@@ -1011,6 +1076,11 @@ async function setView(view) {
 
 document.getElementById('viewVideosBtn').addEventListener('click', () => setView('videos'));
 document.getElementById('viewChannelsBtn').addEventListener('click', () => setView('channels'));
+document.getElementById('filterImportantBtn').addEventListener('click', (e) => {
+    importantOnly = !importantOnly;
+    e.currentTarget.classList.toggle('active', importantOnly);
+    renderHome();
+});
 document.getElementById('liveLeft').addEventListener('click', () => {
     document.getElementById('liveStrip').scrollBy({ left: -220 });
 });
@@ -1096,7 +1166,8 @@ async function renderVideoList() {
         }
     }
     items.sort((a, b) => (b.published || '').localeCompare(a.published || ''));
-    const shown = items.slice(0, feedLimit);
+    const feed = importantOnly ? items.filter((i) => i.important) : items;
+    const shown = feed.slice(0, feedLimit);
     list.textContent = '';
     empty.style.display = shown.length ? 'none' : 'block';
     const impCount = items.filter((i) => i.important && isNewVideo(i, i)).length;
@@ -1211,10 +1282,10 @@ async function renderVideoList() {
         list.appendChild(card);
     }
 
-    if (items.length > shown.length) {
+    if (feed.length > shown.length) {
         const moreBtn = document.createElement('button');
         moreBtn.className = 'btn secondary load-more';
-        moreBtn.textContent = `${t('home.loadMore', 'Show more')} (${items.length - shown.length})`;
+        moreBtn.textContent = `${t('home.loadMore', 'Show more')} (${feed.length - shown.length})`;
         moreBtn.addEventListener('click', () => {
             feedLimit += 25;
             renderHome();

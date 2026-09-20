@@ -28,6 +28,7 @@
         <div class="view-toggle">
             <button id="viewVideosBtn" class="view-btn" data-i18n="home.viewVideos">Videos</button>
             <button id="viewChannelsBtn" class="view-btn" data-i18n="home.viewChannels">Channels</button>
+            <button id="filterImportantBtn" class="view-btn" data-i18n="home.important" data-i18n-title="home.importantOnly" title="Show only important">Important</button>
         </div>
 
         <div id="liveStripWrap" class="live-strip-wrap" hidden>
@@ -202,9 +203,11 @@
                     </div>
                     <button id="ruleAddBtn" class="btn secondary grow" data-i18n="settings.ruleAdd">Add</button>
                 </div>
-                <div class="setting-row">
-                    <button id="ruleTestBtn" class="btn secondary btn-block" data-i18n="settings.ruleTest">Test rules</button>
-                </div>
+                    <div class="setting-row">
+                        <button id="ruleTestBtn" class="btn secondary btn-block" data-i18n="settings.ruleTest">Test rules</button>
+                    </div>
+                    <p class="hint" data-i18n="settings.ruleOrderHint">First match wins — use the arrows to reorder.</p>
+                    <p class="hint" data-i18n="settings.ruleMatchHint">Patterns match anywhere inside the text — no need for .* wrappers.</p>
             </div>
         </details>
         <details class="settings-group">

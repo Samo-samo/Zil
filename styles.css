@@ -1228,6 +1228,16 @@ button.btn.secondary:hover {
     display: none;
 }
 
+.m-rule.is-disabled {
+    opacity: 0.55;
+}
+
+.icon-btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+    transform: none;
+}
+
 /* --- Modal add-form: input full-width, controls on second line --- */
 .m-add {
     display: flex;
