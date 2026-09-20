@@ -10,7 +10,16 @@ let feedLimit = 25;
 // Cached global live mode ('off' hides all live UI). Refreshed in renderHome.
 let liveModeCache = 'auto';
 
-lang(selectedLang).then((strings) => { uiStrings = strings || {}; });
+lang(selectedLang).then(async (strings) => {
+    uiStrings = strings || {};
+    // First paint happens before locales arrive (all-English fallbacks);
+    // repaint once the real strings land.
+    try {
+        await renderHome();
+    } catch {
+        // renderHome not ready yet — bottom init covers it.
+    }
+});
 
 function t(path, fallback) {
   const value = path.split('.').reduce(
