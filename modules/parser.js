@@ -277,12 +277,13 @@ export async function verifyLiveVideo(videoId, fetchFn = fetch) {
     return 'unknown';
   }
 }
-// Title/keyword rules engine. settings.rules[] entries:
+// Title/keyword rules engine. Rule shape:
 //   { id, pattern, field: 'title'|'channel'|'both', action: 'block'|'notify'|'important', enabled }
-// First enabled match wins; anything invalid is skipped; default is 'notify'.
+// First enabled match wins; anything invalid is skipped.
+// Channel rules are evaluated before global ones (channel wins ties).
 // 'block' still advances the baseline (otherwise it would re-fire every check).
-export function classifyVideo(rules, title, channel) {
-  if (!Array.isArray(rules)) return 'notify';
+function matchRules(rules, title, channel) {
+  if (!Array.isArray(rules)) return null;
   for (const r of rules) {
     if (!r || r.enabled === false) continue;
     if (!['block', 'notify', 'important'].includes(r.action)) continue;
@@ -301,9 +302,26 @@ export function classifyVideo(rules, title, channel) {
     } catch {
       continue;
     }
-    if (hit) return r.action;
+    if (hit) return { action: r.action, rule: r };
   }
-  return 'notify';
+  return null;
+}
+
+export function classifyVideo(rules, title, channel) {
+  const m = matchRules(rules, title, channel);
+  return m ? m.action : 'notify';
+}
+
+export function classifyForChannel(chRules, globalRules, title, channel) {
+  return matchRuleDetail(chRules, globalRules, title, channel).action;
+}
+
+// Same precedence as classifyForChannel, but reports WHICH rule matched
+// (for the rules self-test UI). Unmatched → { action: 'notify', rule: null }.
+export function matchRuleDetail(chRules, globalRules, title, channel) {
+  return matchRules(chRules, title, channel)
+    || matchRules(globalRules, title, channel)
+    || { action: 'notify', rule: null };
 }
 // Channel avatar: first author thumbnail on the channel page. Returns '' when
 // the page is a consent/bot shell or the layout changed — callers show an

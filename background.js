@@ -1,4 +1,4 @@
-import { fetchChannelFeed, normalizeChannels, scopeOf, scopePool, scopeAllowsLive, isQuietNow, fetchLiveVideoId, verifyLiveVideo, fetchChannelAvatar, classifyVideo } from './modules/parser.js';
+import { fetchChannelFeed, normalizeChannels, scopeOf, scopePool, scopeAllowsLive, isQuietNow, fetchLiveVideoId, verifyLiveVideo, fetchChannelAvatar, classifyForChannel } from './modules/parser.js';
 
 const ALARM_NAME = 'checkYouTubeRSS';
 const BADGE_COLOR = '#dc2626';
@@ -284,7 +284,7 @@ async function applyLiveCheck(base, live, notifyMode, now, quietActive = false, 
   if (liveId && base.lastNotifiedLiveId !== liveId) {
     next.lastNotifiedLiveId = liveId;
     // Lives carry no title at probe time: channel/both-field rules still apply.
-    const verdictLive = classifyVideo(rules, '', base.name || '');
+    const verdictLive = classifyForChannel(base.rules, rules, '', base.name || '');
     if (verdictLive === 'block') {
       console.log(`Zil: live blocked by rule for ${base.id}`);
     } else {
@@ -377,12 +377,15 @@ async function checkNewVideos() {
       };
       if (feed.videos.length) {
         // Video history for the unified homepage feed (max 15 per channel).
+        // Each entry carries its rule verdict so the UI can style important ones.
+        const feedName = feed.channelTitle || ch.name;
         next.recent = feed.videos.slice(0, 15).map((v) => ({
           videoId: v.videoId,
           title: v.title,
           published: v.published,
           link: v.link,
           thumb: v.thumb || '',
+          important: classifyForChannel(ch.rules, rules, v.title, feedName) === 'important',
         }));
         if (!ch.lastReadAt && feed.videos[0].published) {
           // Seed so pre-existing videos don't all light up as new.
@@ -404,7 +407,7 @@ async function checkNewVideos() {
         next.lastPublished = latest.published;
         next.lastVideoUrl = latest.link;
         next.lastThumb = latest.thumb || ch.lastThumb || '';
-        const verdict = classifyVideo(rules, latest.title, next.name);
+        const verdict = classifyForChannel(ch.rules, rules, latest.title, next.name);
         if (verdict === 'block') {
           console.log(`Zil: blocked by rule: ${latest.title}`);
         } else {
