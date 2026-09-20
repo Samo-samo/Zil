@@ -522,6 +522,16 @@ body.dark .channel-card.is-new {
     color: var(--text-muted);
 }
 
+.pill-important {
+    background: var(--primary);
+    color: #fff;
+}
+
+.channel-card.is-important {
+    border-color: var(--primary);
+    box-shadow: inset 3px 0 0 var(--primary);
+}
+
 .channel-card {
     position: relative;
     display: flex;

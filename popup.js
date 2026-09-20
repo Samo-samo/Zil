@@ -1,5 +1,5 @@
 import { lang } from './modules/localizator.js';
-import { resolveChannelId, fetchChannelFeed, normalizeChannels, isShorts, fetchChannelAvatar, scopeOf, scopePool, CH_SCOPE_ORDER } from './modules/parser.js';
+import { resolveChannelId, fetchChannelFeed, normalizeChannels, isShorts, fetchChannelAvatar, scopeOf, scopePool, CH_SCOPE_ORDER, classifyForChannel, matchRuleDetail } from './modules/parser.js';
 
 const DEFAULT_SETTINGS = { checkIntervalMin: 15, notifyMode: 'all', skipShorts: false, quiet: { enabled: false, start: 23, end: 7 }, liveMode: 'auto', liveIntervalMin: 30 };
 const REFRESH_TIMEOUT_MS = 25000;
@@ -212,6 +212,33 @@ document.getElementById('ruleAddBtn').addEventListener('click', async () => {
     await renderRules();
 });
 
+// Self-test: run all rules (channel-first, then global) against stored video
+// titles so regexes can be verified with real data before relying on them.
+document.getElementById('ruleTestBtn').addEventListener('click', async () => {
+    const { channels = [], settings = {} } = await chrome.storage.local.get(['channels', 'settings']);
+    const globalRules = Array.isArray(settings.rules) ? settings.rules : [];
+    const hits = new Map();
+    let videos = 0;
+    for (const ch of normalizeChannels(channels)) {
+        for (const v of (Array.isArray(ch.recent) ? ch.recent : [])) {
+            videos += 1;
+            const found = matchRuleDetail(ch.rules, globalRules, v.title || '', ch.name || '');
+            if (found.rule) {
+                const key = `${found.rule.pattern} → ${found.action}`;
+                hits.set(key, (hits.get(key) || 0) + 1);
+            }
+        }
+    }
+    const el = document.getElementById('backupStatus');
+    if (!hits.size) {
+        el.textContent = `${t('settings.ruleTestNone', 'No matches.')} (${videos} video)`;
+    } else {
+        el.textContent = [...hits.entries()].map(([k, n]) => `${k} (${n})`).join(' · ');
+    }
+    el.classList.remove('error-line');
+    el.hidden = false;
+});
+
 await loadSettings();
 
 // ---- Test notification + backup (advanced settings) ----
@@ -401,6 +428,7 @@ document.getElementById('saveChannelBtn').addEventListener('click', async (event
                 published: v.published,
                 link: v.link,
                 thumb: v.thumb || '',
+                important: classifyForChannel([], Array.isArray(settings.rules) ? settings.rules : [], v.title, feed.channelTitle || channelId) === 'important',
             })),
             lastReadAt: newest && newest.published ? newest.published : new Date().toISOString(),
             unread: 0,
@@ -684,6 +712,104 @@ async function openChannelModal(channelId) {
         }
     ));
 
+    const mRulesLabel = document.createElement('div');
+    mRulesLabel.className = 'section-label';
+    mRulesLabel.style.marginTop = '12px';
+    mRulesLabel.textContent = `${t('settings.rulesTitle', 'Title rules')} (${t('home.channelOnly', 'this channel')})`;
+    body.appendChild(mRulesLabel);
+    const mRuleList = document.createElement('div');
+    body.appendChild(mRuleList);
+
+    async function persistChannelRules(next) {
+        const all = await getChannels();
+        await chrome.storage.local.set({ channels: all.map((c) => (c.id === ch.id ? { ...c, rules: next } : c)) });
+        await renderHome();
+    }
+
+    async function renderModalRules() {
+        const all = await getChannels();
+        const cur = all.find((c) => c.id === ch.id);
+        const crules = cur && Array.isArray(cur.rules) ? cur.rules : [];
+        mRuleList.textContent = '';
+        for (const r of crules) {
+            const row = document.createElement('div');
+            row.className = 'flex rule-row';
+            const text = document.createElement('span');
+            text.className = 'grow rule-pattern';
+            text.textContent = r.pattern;
+            text.title = r.pattern;
+            const meta = document.createElement('span');
+            meta.className = 'muted small';
+            meta.textContent = `${ruleFieldLabel(r.field)} · ${ruleActionLabel(r.action)}`;
+            const del = document.createElement('button');
+            del.className = 'icon-btn small';
+            del.title = t('settings.ruleDelete', 'Delete rule');
+            del.textContent = '×';
+            del.addEventListener('click', async () => {
+                const latest = await getChannels();
+                const found = latest.find((c) => c.id === ch.id);
+                const rest = found && Array.isArray(found.rules) ? found.rules.filter((x) => x && x.id !== r.id) : [];
+                await persistChannelRules(rest);
+                await renderModalRules();
+            });
+            row.appendChild(text);
+            row.appendChild(meta);
+            row.appendChild(del);
+            mRuleList.appendChild(row);
+        }
+    }
+
+    const mRuleAddRow = document.createElement('div');
+    mRuleAddRow.className = 'flex';
+    mRuleAddRow.style.gap = '8px';
+    mRuleAddRow.style.marginTop = '8px';
+    const mRuleInput = document.createElement('input');
+    mRuleInput.type = 'text';
+    mRuleInput.className = 'grow';
+    mRuleInput.placeholder = t('settings.rulePlaceholder', 'Pattern, e.g. shorts|trailer');
+    const mFieldSel = document.createElement('select');
+    for (const f of ['title', 'channel', 'both']) {
+        const opt = document.createElement('option');
+        opt.value = f;
+        opt.textContent = ruleFieldLabel(f);
+        mFieldSel.appendChild(opt);
+    }
+    const mActionSel = document.createElement('select');
+    for (const a of ['block', 'notify', 'important']) {
+        const opt = document.createElement('option');
+        opt.value = a;
+        opt.textContent = ruleActionLabel(a);
+        mActionSel.appendChild(opt);
+    }
+    const mAddBtn = document.createElement('button');
+    mAddBtn.className = 'btn secondary';
+    mAddBtn.textContent = t('settings.ruleAdd', 'Add');
+    mAddBtn.addEventListener('click', async () => {
+        const pattern = mRuleInput.value.trim();
+        if (!pattern) return;
+        try {
+            new RegExp(pattern, 'i');
+        } catch {
+            mRuleInput.title = t('settings.ruleError', 'Invalid pattern.');
+            mRuleInput.focus();
+            return;
+        }
+        const all = await getChannels();
+        const cur = all.find((c) => c.id === ch.id);
+        const crules = cur && Array.isArray(cur.rules) ? [...cur.rules] : [];
+        crules.push({ id: 'r' + Date.now().toString(36), pattern, field: mFieldSel.value, action: mActionSel.value, enabled: true });
+        await persistChannelRules(crules);
+        mRuleInput.value = '';
+        await renderModalRules();
+    });
+    mRuleAddRow.appendChild(mRuleInput);
+    mRuleAddRow.appendChild(mFieldSel);
+    mRuleAddRow.appendChild(mActionSel);
+    mRuleAddRow.appendChild(mAddBtn);
+    body.appendChild(mRuleAddRow);
+
+    await renderModalRules();
+
     document.getElementById('modalOverlay').hidden = false;
 }
 
@@ -852,9 +978,16 @@ async function renderVideoList() {
     const shown = items.slice(0, feedLimit);
     list.textContent = '';
     empty.style.display = shown.length ? 'none' : 'block';
+    const impCount = items.filter((i) => i.important && isNewVideo(i, i)).length;
+    if (impCount > 0) {
+        const counter = document.createElement('div');
+        counter.className = 'muted';
+        counter.textContent = `${impCount} ${t('home.important', 'Important')}`;
+        list.appendChild(counter);
+    }
     for (const item of shown) {
         const card = document.createElement('div');
-        card.className = 'channel-card' + (isNewVideo(item, item) ? ' is-new' : '');
+        card.className = 'channel-card' + (isNewVideo(item, item) ? ' is-new' : '') + (item.important ? ' is-important' : '');
         card.title = t('home.openVideo', 'Open video');
         card.addEventListener('click', () => openVideo(item.channelId, item.videoId, item.published, item.link));
         card.addEventListener('auxclick', (e) => {
@@ -928,6 +1061,13 @@ async function renderVideoList() {
         const pills = document.createElement('div');
         pills.className = 'pill-row';
         let hasPill = false;
+        if (item.important) {
+            const imp = document.createElement('span');
+            imp.className = 'pill pill-important';
+            imp.textContent = t('home.important', 'Important');
+            pills.appendChild(imp);
+            hasPill = true;
+        }
         if (liveModeCache !== 'off' && item.liveHere) {
             const live = document.createElement('span');
             live.className = 'live-btn';
