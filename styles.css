@@ -522,14 +522,25 @@ body.dark .channel-card.is-new {
     color: var(--text-muted);
 }
 
-.pill-important {
-    background: var(--primary);
-    color: #fff;
-}
-
 .channel-card.is-important {
     border-color: var(--primary);
-    box-shadow: inset 3px 0 0 var(--primary);
+}
+
+/* Vertical IMPORTANT rail replacing the pill tag. */
+.important-rail {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    align-self: stretch;
+    display: flex;
+    align-items: center;
+    padding: 6px 3px;
+    border-radius: 4px;
+    background: var(--primary);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    flex-shrink: 0;
 }
 
 .channel-card {
@@ -560,13 +571,17 @@ body.dark .channel-card.is-new {
     transition: transform 0.18s ease;
 }
 
-/* Hover tooltip: enlarged preview of the thumbnail. */
-img.thumb:hover {
-    position: relative;
-    z-index: 10;
-    transform: scale(2.2);
-    transform-origin: left center;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+/* Hover preview: modest zoom that stays inside the popup. The old 2.2x zoom
+   got clipped by the popup edge and looked like it teleported. Guarded to
+   real hover pointers so touch taps never stick. */
+@media (hover: hover) {
+    img.thumb:hover {
+        position: relative;
+        z-index: 10;
+        transform: scale(1.6);
+        transform-origin: left center;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    }
 }
 
 .thumb-missing {
@@ -1053,4 +1068,187 @@ button.btn.secondary:hover {
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
     padding: 4px 8px;
+}
+
+/* --- Channel modal (compact sections) --- */
+#modalBody {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.modal-box .header-area {
+    margin-bottom: 12px;
+}
+
+.m-id {
+    padding: 0;
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: left;
+}
+
+.m-id:hover {
+    color: var(--primary);
+    text-decoration: underline;
+}
+
+.m-sec {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+}
+
+.m-sec .section-label {
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.m-sec .setting-row {
+    padding: 6px 0;
+}
+
+.m-sec .setting-row + .setting-row {
+    margin-top: 0;
+    border-top: 1px solid var(--border-color);
+}
+
+.m-sec .setting-row label {
+    font-size: var(--fs-sm);
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.m-sec .select-wrapper select {
+    max-width: 168px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* --- Per-channel rules scroll (cap ~3 rows, add-form stays visible) --- */
+.m-rules-scroll {
+    max-height: 132px;
+    margin: 2px -4px 8px;
+    padding: 0 4px;
+}
+
+.m-empty {
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+    padding: 6px 0;
+}
+
+/* --- Rule rows: view vs edit --- */
+.m-rule {
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.m-rule .rule-pattern {
+    min-width: 0;
+}
+
+.m-rule-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+}
+
+.m-act {
+    font-style: normal;
+    font-weight: 700;
+    font-size: var(--fs-xs);
+    padding: 1px 8px;
+    border-radius: 50px;
+    border: 1px solid var(--border-color);
+}
+
+.m-act-block {
+    color: #DC2626;
+    border-color: rgba(220, 38, 38, 0.4);
+    background: rgba(220, 38, 38, 0.08);
+}
+
+.m-act-notify {
+    color: #2563EB;
+    border-color: rgba(37, 99, 235, 0.4);
+    background: rgba(37, 99, 235, 0.08);
+}
+
+.m-act-important {
+    color: #B45309;
+    border-color: rgba(180, 83, 9, 0.4);
+    background: rgba(180, 83, 9, 0.08);
+}
+
+.m-rule.is-editing {
+    border-bottom: 1px dashed var(--border-color);
+    background: var(--bg-card);
+    border-radius: var(--radius-sm);
+    padding: 8px;
+}
+
+.m-rule.is-editing .m-edit-input {
+    flex: 1 1 100%;
+    font-family: monospace;
+}
+
+.m-rule.is-editing .m-edit-input[aria-invalid="true"] {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15);
+}
+
+.m-edit-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1 1 100%;
+}
+
+.m-edit-bar select {
+    max-width: 104px;
+}
+
+.m-edit-bar .m-save {
+    width: auto;
+    padding: 6px 14px;
+    font-size: var(--fs-xs);
+}
+
+.m-rule.is-editing .m-edit {
+    display: none;
+}
+
+/* --- Modal add-form: input full-width, controls on second line --- */
+.m-add {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.m-add input[type="text"] {
+    flex: 1 1 100%;
+}
+
+.m-add .select-wrapper {
+    flex: 1;
+}
+
+.m-add .select-wrapper select {
+    width: 100%;
+    max-width: none;
+}
+
+.m-add .btn.secondary {
+    flex: 1;
+    padding: 7px 10px;
 }

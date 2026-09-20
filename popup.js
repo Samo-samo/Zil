@@ -163,6 +163,97 @@ function ruleFieldLabel(field) {
     return t('settings.ruleFieldTitle', 'Title');
 }
 
+function ruleActionPill(action) {
+    const act = action === 'block' ? 'block' : action === 'important' ? 'important' : 'notify';
+    const pill = document.createElement('i');
+    pill.className = `m-act m-act-${act}`;
+    pill.textContent = ruleActionLabel(act);
+    return pill;
+}
+
+function optionSelect(values, labelFn, current) {
+    const sel = document.createElement('select');
+    for (const v of values) {
+        const opt = document.createElement('option');
+        opt.value = v;
+        opt.textContent = labelFn(v);
+        sel.appendChild(opt);
+    }
+    sel.value = current;
+    return sel;
+}
+
+// Shared view/edit rule row for the global list and the channel modal.
+// onSave(updatedRule) persists; rerender() rebuilds the owning list.
+function buildRuleRow(r, { onSave, onDelete, rerender }) {
+    const row = document.createElement('div');
+    row.className = 'flex rule-row m-rule';
+    const text = document.createElement('span');
+    text.className = 'grow rule-pattern';
+    text.textContent = r.pattern;
+    text.title = r.pattern;
+    const meta = document.createElement('span');
+    meta.className = 'muted small m-rule-meta';
+    meta.appendChild(ruleActionPill(r.action));
+    meta.appendChild(document.createTextNode(` · ${ruleFieldLabel(r.field)}`));
+    const edit = document.createElement('button');
+    edit.className = 'icon-btn small m-edit';
+    edit.title = t('home.editRule', 'Edit rule');
+    edit.textContent = '✎';
+    edit.addEventListener('click', () => enterRuleEdit(row, r, { onSave, rerender }));
+    const del = document.createElement('button');
+    del.className = 'icon-btn small';
+    del.title = t('settings.ruleDelete', 'Delete rule');
+    del.textContent = '×';
+    del.addEventListener('click', onDelete);
+    row.appendChild(text);
+    row.appendChild(meta);
+    row.appendChild(edit);
+    row.appendChild(del);
+    return row;
+}
+
+function enterRuleEdit(row, r, { onSave, rerender }) {
+    row.classList.add('is-editing');
+    row.textContent = '';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'm-edit-input';
+    input.value = r.pattern;
+    const bar = document.createElement('div');
+    bar.className = 'm-edit-bar';
+    const fieldSel = optionSelect(['title', 'channel', 'both'], ruleFieldLabel, r.field);
+    const actionSel = optionSelect(['block', 'notify', 'important'], ruleActionLabel, r.action);
+    const save = document.createElement('button');
+    save.className = 'btn secondary m-save';
+    save.textContent = t('home.save', 'Save');
+    save.addEventListener('click', async () => {
+        const pattern = input.value.trim();
+        try {
+            if (!pattern) throw new Error('empty');
+            new RegExp(pattern, 'i');
+        } catch {
+            input.setAttribute('aria-invalid', 'true');
+            input.focus();
+            return;
+        }
+        await onSave({ ...r, pattern, field: fieldSel.value, action: actionSel.value });
+        await rerender();
+    });
+    const cancel = document.createElement('button');
+    cancel.className = 'icon-btn small m-cancel';
+    cancel.title = t('home.close', 'Close');
+    cancel.textContent = '×';
+    cancel.addEventListener('click', () => rerender());
+    bar.appendChild(fieldSel);
+    bar.appendChild(actionSel);
+    bar.appendChild(save);
+    bar.appendChild(cancel);
+    row.appendChild(input);
+    row.appendChild(bar);
+    input.focus();
+}
+
 async function renderRules() {
     const list = document.getElementById('ruleList');
     if (!list) return;
@@ -170,29 +261,20 @@ async function renderRules() {
     const rules = Array.isArray(settings.rules) ? settings.rules : [];
     list.textContent = '';
     for (const r of rules) {
-        const row = document.createElement('div');
-        row.className = 'flex rule-row';
-        const text = document.createElement('span');
-        text.className = 'grow rule-pattern';
-        text.textContent = r.pattern;
-        text.title = r.pattern;
-        const meta = document.createElement('span');
-        meta.className = 'muted small';
-        meta.textContent = `${ruleFieldLabel(r.field)} · ${ruleActionLabel(r.action)}`;
-        const del = document.createElement('button');
-        del.className = 'icon-btn small';
-        del.title = t('settings.ruleDelete', 'Delete rule');
-        del.textContent = '×';
-        del.addEventListener('click', async () => {
-            const cur = await chrome.storage.local.get(['settings']);
-            const all = Array.isArray(cur.settings && cur.settings.rules) ? cur.settings.rules : [];
-            await chrome.storage.local.set({ settings: { ...(cur.settings || {}), rules: all.filter((x) => x && x.id !== r.id) } });
-            await renderRules();
-        });
-        row.appendChild(text);
-        row.appendChild(meta);
-        row.appendChild(del);
-        list.appendChild(row);
+        list.appendChild(buildRuleRow(r, {
+            onSave: async (updated) => {
+                const cur = await chrome.storage.local.get(['settings']);
+                const all = Array.isArray(cur.settings && cur.settings.rules) ? cur.settings.rules : [];
+                await chrome.storage.local.set({ settings: { ...(cur.settings || {}), rules: all.map((x) => (x && x.id === updated.id ? updated : x)) } });
+            },
+            onDelete: async () => {
+                const cur = await chrome.storage.local.get(['settings']);
+                const all = Array.isArray(cur.settings && cur.settings.rules) ? cur.settings.rules : [];
+                await chrome.storage.local.set({ settings: { ...(cur.settings || {}), rules: all.filter((x) => x && x.id !== r.id) } });
+                await renderRules();
+            },
+            rerender: renderRules,
+        }));
     }
     const badge = document.getElementById('ruleCount');
     if (badge) {
@@ -684,8 +766,23 @@ async function openChannelModal(channelId) {
     const body = document.getElementById('modalBody');
     body.textContent = '';
 
+    const idRow = document.createElement('button');
+    idRow.className = 'm-id';
+    idRow.title = t('home.copyId', 'Copy channel ID');
+    idRow.textContent = ch.id;
+    idRow.addEventListener('click', (e) => copyText(ch.id, e.currentTarget, t('home.copied', 'Copied')));
+    body.appendChild(idRow);
+
+    const chSec = document.createElement('div');
+    chSec.className = 'm-sec';
+    const chSecLabel = document.createElement('div');
+    chSecLabel.className = 'section-label';
+    chSecLabel.textContent = t('home.channelSection', 'Channel');
+    chSec.appendChild(chSecLabel);
+    body.appendChild(chSec);
+
     const nState = CH_NOTIFY_ORDER.includes(ch.chNotify) ? ch.chNotify : 'default';
-    body.appendChild(selectRow(
+    chSec.appendChild(selectRow(
         `chNotify-${ch.id}`,
         t('home.chNotify', 'Channel notifications'),
         CH_NOTIFY_ORDER.map((opt) => [opt, chNotifyLabel(opt)]),
@@ -698,7 +795,7 @@ async function openChannelModal(channelId) {
         }
     ));
 
-    body.appendChild(selectRow(
+    chSec.appendChild(selectRow(
         `chScope-${ch.id}`,
         t('home.contentScope', 'Content'),
         CH_SCOPE_ORDER.map((opt) => [opt, scopeLabel(opt)]),
@@ -716,7 +813,7 @@ async function openChannelModal(channelId) {
         }
     ));
 
-    body.appendChild(selectRow(
+    chSec.appendChild(selectRow(
         `chLive-${ch.id}`,
         t('home.liveCheck', 'Live check'),
         CH_LIVE_ORDER.map((opt) => [opt, liveCheckLabel(opt)]),
@@ -732,9 +829,20 @@ async function openChannelModal(channelId) {
     mRulesLabel.className = 'section-label';
     mRulesLabel.style.marginTop = '12px';
     mRulesLabel.textContent = `${t('settings.rulesTitle', 'Title rules')} (${t('home.channelOnly', 'this channel')})`;
+    const mRuleBadge = document.createElement('span');
+    mRuleBadge.className = 'group-badge';
+    mRuleBadge.textContent = '0';
+    mRulesLabel.appendChild(document.createTextNode(' '));
+    mRulesLabel.appendChild(mRuleBadge);
     body.appendChild(mRulesLabel);
     const mRuleList = document.createElement('div');
+    mRuleList.className = 'rules-scroll m-rules-scroll';
     body.appendChild(mRuleList);
+    const mEmpty = document.createElement('div');
+    mEmpty.className = 'm-empty';
+    mEmpty.textContent = t('settings.ruleEmpty', 'No rules — videos follow global rules.');
+    mEmpty.hidden = true;
+    body.appendChild(mEmpty);
 
     async function persistChannelRules(next) {
         const all = await getChannels();
@@ -748,55 +856,43 @@ async function openChannelModal(channelId) {
         const crules = cur && Array.isArray(cur.rules) ? cur.rules : [];
         mRuleList.textContent = '';
         for (const r of crules) {
-            const row = document.createElement('div');
-            row.className = 'flex rule-row';
-            const text = document.createElement('span');
-            text.className = 'grow rule-pattern';
-            text.textContent = r.pattern;
-            text.title = r.pattern;
-            const meta = document.createElement('span');
-            meta.className = 'muted small';
-            meta.textContent = `${ruleFieldLabel(r.field)} · ${ruleActionLabel(r.action)}`;
-            const del = document.createElement('button');
-            del.className = 'icon-btn small';
-            del.title = t('settings.ruleDelete', 'Delete rule');
-            del.textContent = '×';
-            del.addEventListener('click', async () => {
-                const latest = await getChannels();
-                const found = latest.find((c) => c.id === ch.id);
-                const rest = found && Array.isArray(found.rules) ? found.rules.filter((x) => x && x.id !== r.id) : [];
-                await persistChannelRules(rest);
-                await renderModalRules();
-            });
-            row.appendChild(text);
-            row.appendChild(meta);
-            row.appendChild(del);
-            mRuleList.appendChild(row);
+            mRuleList.appendChild(buildRuleRow(r, {
+                onSave: async (updated) => {
+                    const latest = await getChannels();
+                    const found = latest.find((c) => c.id === ch.id);
+                    const rest = found && Array.isArray(found.rules)
+                        ? found.rules.map((x) => (x && x.id === updated.id ? updated : x))
+                        : [];
+                    await persistChannelRules(rest);
+                },
+                onDelete: async () => {
+                    const latest = await getChannels();
+                    const found = latest.find((c) => c.id === ch.id);
+                    const rest = found && Array.isArray(found.rules) ? found.rules.filter((x) => x && x.id !== r.id) : [];
+                    await persistChannelRules(rest);
+                    await renderModalRules();
+                },
+                rerender: renderModalRules,
+            }));
         }
+        mRuleBadge.textContent = String(crules.length);
+        mRuleBadge.classList.toggle('has-rules', crules.length > 0);
+        mEmpty.hidden = crules.length > 0;
     }
 
     const mRuleAddRow = document.createElement('div');
-    mRuleAddRow.className = 'flex';
-    mRuleAddRow.style.gap = '8px';
-    mRuleAddRow.style.marginTop = '8px';
+    mRuleAddRow.className = 'm-add';
     const mRuleInput = document.createElement('input');
     mRuleInput.type = 'text';
-    mRuleInput.className = 'grow';
     mRuleInput.placeholder = t('settings.rulePlaceholder', 'Pattern, e.g. shorts|trailer');
-    const mFieldSel = document.createElement('select');
-    for (const f of ['title', 'channel', 'both']) {
-        const opt = document.createElement('option');
-        opt.value = f;
-        opt.textContent = ruleFieldLabel(f);
-        mFieldSel.appendChild(opt);
-    }
-    const mActionSel = document.createElement('select');
-    for (const a of ['block', 'notify', 'important']) {
-        const opt = document.createElement('option');
-        opt.value = a;
-        opt.textContent = ruleActionLabel(a);
-        mActionSel.appendChild(opt);
-    }
+    const mFieldWrap = document.createElement('div');
+    mFieldWrap.className = 'select-wrapper';
+    const mFieldSel = optionSelect(['title', 'channel', 'both'], ruleFieldLabel, 'title');
+    mFieldWrap.appendChild(mFieldSel);
+    const mActionWrap = document.createElement('div');
+    mActionWrap.className = 'select-wrapper';
+    const mActionSel = optionSelect(['block', 'notify', 'important'], ruleActionLabel, 'notify');
+    mActionWrap.appendChild(mActionSel);
     const mAddBtn = document.createElement('button');
     mAddBtn.className = 'btn secondary';
     mAddBtn.textContent = t('settings.ruleAdd', 'Add');
@@ -819,8 +915,8 @@ async function openChannelModal(channelId) {
         await renderModalRules();
     });
     mRuleAddRow.appendChild(mRuleInput);
-    mRuleAddRow.appendChild(mFieldSel);
-    mRuleAddRow.appendChild(mActionSel);
+    mRuleAddRow.appendChild(mFieldWrap);
+    mRuleAddRow.appendChild(mActionWrap);
     mRuleAddRow.appendChild(mAddBtn);
     body.appendChild(mRuleAddRow);
 
@@ -1004,6 +1100,12 @@ async function renderVideoList() {
     for (const item of shown) {
         const card = document.createElement('div');
         card.className = 'channel-card' + (isNewVideo(item, item) ? ' is-new' : '') + (item.important ? ' is-important' : '');
+        if (item.important) {
+            const rail = document.createElement('span');
+            rail.className = 'important-rail';
+            rail.textContent = t('home.important', 'Important');
+            card.appendChild(rail);
+        }
         card.title = t('home.openVideo', 'Open video');
         card.addEventListener('click', () => openVideo(item.channelId, item.videoId, item.published, item.link));
         card.addEventListener('auxclick', (e) => {
@@ -1077,13 +1179,6 @@ async function renderVideoList() {
         const pills = document.createElement('div');
         pills.className = 'pill-row';
         let hasPill = false;
-        if (item.important) {
-            const imp = document.createElement('span');
-            imp.className = 'pill pill-important';
-            imp.textContent = t('home.important', 'Important');
-            pills.appendChild(imp);
-            hasPill = true;
-        }
         if (liveModeCache !== 'off' && item.liveHere) {
             const live = document.createElement('span');
             live.className = 'live-btn';
