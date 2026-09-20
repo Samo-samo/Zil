@@ -82,6 +82,7 @@ const quietStartSelect = document.getElementById('quietStart');
 const quietEndSelect = document.getElementById('quietEnd');
 const liveModeSelect = document.getElementById('liveMode');
 const liveIntervalSelect = document.getElementById('liveInterval');
+const importantBypassToggle = document.getElementById('importantBypass');
 
 function fillHourOptions(select) {
     for (let h = 0; h < 24; h++) {
@@ -107,6 +108,8 @@ async function loadSettings() {
     if (quietEndSelect) quietEndSelect.value = String(Number.isInteger(q.end) ? q.end : 7);
     if (liveModeSelect) liveModeSelect.value = ['off', 'auto', 'manual'].includes(merged.liveMode) ? merged.liveMode : 'auto';
     if (liveIntervalSelect) liveIntervalSelect.value = String([15, 30, 60, 120].includes(merged.liveIntervalMin) ? merged.liveIntervalMin : 30);
+    if (importantBypassToggle) importantBypassToggle.checked = merged.importantBypassQuiet !== false;
+    await renderRules();
 }
 
 async function saveSettings() {
@@ -121,6 +124,7 @@ async function saveSettings() {
         },
         liveMode: liveModeSelect ? liveModeSelect.value : 'auto',
         liveIntervalMin: liveIntervalSelect ? Number(liveIntervalSelect.value) || 30 : 30,
+        importantBypassQuiet: importantBypassToggle ? importantBypassToggle.checked : true,
     };
     await chrome.storage.local.set({ settings });
     // Background rebuilds the alarm via storage.onChanged.
@@ -134,6 +138,79 @@ if (quietStartSelect) quietStartSelect.addEventListener('change', saveSettings);
 if (quietEndSelect) quietEndSelect.addEventListener('change', saveSettings);
 if (liveModeSelect) liveModeSelect.addEventListener('change', saveSettings);
 if (liveIntervalSelect) liveIntervalSelect.addEventListener('change', saveSettings);
+if (importantBypassToggle) importantBypassToggle.addEventListener('change', saveSettings);
+
+function ruleActionLabel(action) {
+    if (action === 'block') return t('settings.ruleBlock', 'Block');
+    if (action === 'important') return t('settings.ruleImportant', 'Important');
+    return t('settings.ruleNotify', 'Notify');
+}
+
+function ruleFieldLabel(field) {
+    if (field === 'channel') return t('settings.ruleFieldChannel', 'Channel');
+    if (field === 'both') return t('settings.ruleFieldBoth', 'Both');
+    return t('settings.ruleFieldTitle', 'Title');
+}
+
+async function renderRules() {
+    const list = document.getElementById('ruleList');
+    if (!list) return;
+    const { settings = {} } = await chrome.storage.local.get(['settings']);
+    const rules = Array.isArray(settings.rules) ? settings.rules : [];
+    list.textContent = '';
+    for (const r of rules) {
+        const row = document.createElement('div');
+        row.className = 'flex rule-row';
+        const text = document.createElement('span');
+        text.className = 'grow rule-pattern';
+        text.textContent = r.pattern;
+        text.title = r.pattern;
+        const meta = document.createElement('span');
+        meta.className = 'muted small';
+        meta.textContent = `${ruleFieldLabel(r.field)} · ${ruleActionLabel(r.action)}`;
+        const del = document.createElement('button');
+        del.className = 'icon-btn small';
+        del.title = t('settings.ruleDelete', 'Delete rule');
+        del.textContent = '×';
+        del.addEventListener('click', async () => {
+            const cur = await chrome.storage.local.get(['settings']);
+            const all = Array.isArray(cur.settings && cur.settings.rules) ? cur.settings.rules : [];
+            await chrome.storage.local.set({ settings: { ...(cur.settings || {}), rules: all.filter((x) => x && x.id !== r.id) } });
+            await renderRules();
+        });
+        row.appendChild(text);
+        row.appendChild(meta);
+        row.appendChild(del);
+        list.appendChild(row);
+    }
+}
+
+document.getElementById('ruleAddBtn').addEventListener('click', async () => {
+    const input = document.getElementById('ruleInput');
+    const pattern = input ? input.value.trim() : '';
+    if (!pattern) return;
+    try {
+        new RegExp(pattern, 'i');
+    } catch {
+        showBackupStatus('settings.ruleError', 'Invalid pattern.', true);
+        return;
+    }
+    const cur = await chrome.storage.local.get(['settings']);
+    const settings = cur.settings || {};
+    const rules = Array.isArray(settings.rules) ? [...settings.rules] : [];
+    const fieldSel = document.getElementById('ruleField');
+    const actionSel = document.getElementById('ruleAction');
+    rules.push({
+        id: 'r' + Date.now().toString(36),
+        pattern,
+        field: fieldSel ? fieldSel.value : 'title',
+        action: actionSel ? actionSel.value : 'notify',
+        enabled: true,
+    });
+    await chrome.storage.local.set({ settings: { ...settings, rules } });
+    if (input) input.value = '';
+    await renderRules();
+});
 
 await loadSettings();
 

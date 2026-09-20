@@ -680,6 +680,20 @@ button.btn.secondary:hover {
     padding: 4px 0;
 }
 
+.rule-row {
+    align-items: center;
+    padding: 5px 0;
+    border-bottom: 1px dashed var(--border-color);
+}
+
+.rule-pattern {
+    font-family: monospace;
+    font-size: var(--fs-xs);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .setting-row + .setting-row {
     margin-top: 8px;
 }

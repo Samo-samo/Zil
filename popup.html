@@ -147,6 +147,30 @@
                     </div>
                 </div>
                 <div class="setting-row">
+                    <div class="section-label" data-i18n="settings.rulesTitle">Title rules</div>
+                    <div id="ruleList"></div>
+                    <div class="flex" style="gap: 8px; margin-top: 8px;">
+                        <input type="text" id="ruleInput" class="grow" data-i18n-placeholder="settings.rulePlaceholder" placeholder="Pattern, e.g. shorts|trailer">
+                    </div>
+                    <div class="flex" style="gap: 8px; margin-top: 8px;">
+                        <select id="ruleField">
+                            <option value="title" data-i18n="settings.ruleFieldTitle">Title</option>
+                            <option value="channel" data-i18n="settings.ruleFieldChannel">Channel</option>
+                            <option value="both" data-i18n="settings.ruleFieldBoth">Both</option>
+                        </select>
+                        <select id="ruleAction">
+                            <option value="block" data-i18n="settings.ruleBlock">Block</option>
+                            <option value="notify" data-i18n="settings.ruleNotify">Notify</option>
+                            <option value="important" data-i18n="settings.ruleImportant">Important</option>
+                        </select>
+                        <button id="ruleAddBtn" class="btn secondary grow" data-i18n="settings.ruleAdd">Add</button>
+                    </div>
+                </div>
+                <div class="flex setting-row">
+                    <label for="importantBypass" data-i18n="settings.importantBypass">Important bypasses quiet hours</label>
+                    <input type="checkbox" name="importantBypass" id="importantBypass" class="check">
+                </div>
+                <div class="setting-row">
                     <button id="testNotifBtn" class="btn secondary" data-i18n="settings.testNotif">Send test notification</button>
                 </div>
                 <div class="flex setting-row">

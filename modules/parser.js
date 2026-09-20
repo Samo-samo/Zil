@@ -277,6 +277,34 @@ export async function verifyLiveVideo(videoId, fetchFn = fetch) {
     return 'unknown';
   }
 }
+// Title/keyword rules engine. settings.rules[] entries:
+//   { id, pattern, field: 'title'|'channel'|'both', action: 'block'|'notify'|'important', enabled }
+// First enabled match wins; anything invalid is skipped; default is 'notify'.
+// 'block' still advances the baseline (otherwise it would re-fire every check).
+export function classifyVideo(rules, title, channel) {
+  if (!Array.isArray(rules)) return 'notify';
+  for (const r of rules) {
+    if (!r || r.enabled === false) continue;
+    if (!['block', 'notify', 'important'].includes(r.action)) continue;
+    if (typeof r.pattern !== 'string' || !r.pattern) continue;
+    let re;
+    try {
+      re = new RegExp(r.pattern, 'i');
+    } catch {
+      continue;
+    }
+    const field = r.field === 'channel' ? 'channel' : r.field === 'both' ? 'both' : 'title';
+    const text = field === 'title' ? (title || '') : field === 'channel' ? (channel || '') : `${title || ''}\n${channel || ''}`;
+    let hit = false;
+    try {
+      hit = re.test(text);
+    } catch {
+      continue;
+    }
+    if (hit) return r.action;
+  }
+  return 'notify';
+}
 // Channel avatar: first author thumbnail on the channel page. Returns '' when
 // the page is a consent/bot shell or the layout changed — callers show an
 // initial-letter placeholder instead.

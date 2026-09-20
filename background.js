@@ -1,4 +1,4 @@
-import { fetchChannelFeed, normalizeChannels, scopeOf, scopePool, scopeAllowsLive, isQuietNow, fetchLiveVideoId, verifyLiveVideo, fetchChannelAvatar } from './modules/parser.js';
+import { fetchChannelFeed, normalizeChannels, scopeOf, scopePool, scopeAllowsLive, isQuietNow, fetchLiveVideoId, verifyLiveVideo, fetchChannelAvatar, classifyVideo } from './modules/parser.js';
 
 const ALARM_NAME = 'checkYouTubeRSS';
 const BADGE_COLOR = '#dc2626';
@@ -38,6 +38,8 @@ async function getSettings() {
   if (![15, 30, 60, 120].includes(merged.checkIntervalMin)) merged.checkIntervalMin = 15;
   if (!['all', 'badge', 'off'].includes(merged.notifyMode)) merged.notifyMode = 'all';
   merged.skipShorts = merged.skipShorts === true;
+  merged.rules = Array.isArray(merged.rules) ? merged.rules : [];
+  merged.importantBypassQuiet = merged.importantBypassQuiet !== false;
   if (!['off', 'auto', 'manual'].includes(merged.liveMode)) merged.liveMode = 'auto';
   if (![15, 30, 60, 120].includes(merged.liveIntervalMin)) merged.liveIntervalMin = 30;
   const q = (merged.quiet && typeof merged.quiet === 'object') ? merged.quiet : {};
@@ -182,7 +184,7 @@ async function updateBadge() {
   }
 }
 
-async function notifyLive(channel, liveId) {
+async function notifyLive(channel, liveId, important = false) {
   let tr = false;
   try {
     const { user_selected_lang } = await chrome.storage.local.get(['user_selected_lang']);
@@ -196,6 +198,7 @@ async function notifyLive(channel, liveId) {
       iconUrl: NOTIF_ICON,
       title: channel.name || 'Zil',
       message: tr ? 'Su an canli yayinda — izlemek icin tikla' : 'Live now — click to watch',
+      requireInteraction: important === true,
     });
   } catch (err) {
     console.warn('Zil: live notification failed', err);
@@ -211,11 +214,12 @@ function effectiveMode(ch, globalMode, quietActive = false) {
   return base;
 }
 
-async function notifyNewVideo(channel, video) {
+async function notifyNewVideo(channel, video, important = false) {
   const base = {
     iconUrl: NOTIF_ICON,
     title: channel.name || 'Zil',
     message: video.title,
+    requireInteraction: important === true,
   };
   try {
     if (video.thumb) {
@@ -244,7 +248,7 @@ async function notifyNewVideo(channel, video) {
 // traffic and far more bot-mitigation attention. So live probes are throttled
 // per channel (settings.liveIntervalMin); video checks always run. Manual
 // probes bypass the throttle.
-async function applyLiveCheck(base, live, notifyMode, now, quietActive = false, force = false) {
+async function applyLiveCheck(base, live, notifyMode, now, quietActive = false, force = false, rules = [], importantBypassQuiet = true) {
   if (live.mode === 'off') {
     return { next: { ...base, isLive: false, liveVideoId: null }, counted: false, notified: false };
   }
@@ -279,14 +283,21 @@ async function applyLiveCheck(base, live, notifyMode, now, quietActive = false, 
   let notified = false;
   if (liveId && base.lastNotifiedLiveId !== liveId) {
     next.lastNotifiedLiveId = liveId;
-    const effLive = effectiveMode(base, notifyMode, quietActive);
-    if (effLive !== 'off') {
-      next.unread = (next.unread || base.unread || 0) + 1;
-      counted = true;
-    }
-    if (effLive === 'all') {
-      await notifyLive(next, liveId);
-      notified = true;
+    // Lives carry no title at probe time: channel/both-field rules still apply.
+    const verdictLive = classifyVideo(rules, '', base.name || '');
+    if (verdictLive === 'block') {
+      console.log(`Zil: live blocked by rule for ${base.id}`);
+    } else {
+      const quietForLive = quietActive && !(verdictLive === 'important' && importantBypassQuiet && notifyMode === 'all');
+      const effLive = effectiveMode(base, notifyMode, quietForLive);
+      if (effLive !== 'off') {
+        next.unread = (next.unread || base.unread || 0) + 1;
+        counted = true;
+      }
+      if (effLive === 'all') {
+        await notifyLive(next, liveId, verdictLive === 'important');
+        notified = true;
+      }
     }
   }
   return { next, counted, notified };
@@ -301,7 +312,7 @@ async function probeOneChannelLive(channelId) {
   if (idx < 0) return { ok: false, error: 'unknown-channel' };
   const now = new Date().toISOString();
   try {
-    const { next, counted, notified } = await applyLiveCheck(channels[idx], live, notifyMode, now, isQuietNow(settings), true);
+    const { next, counted, notified } = await applyLiveCheck(channels[idx], live, notifyMode, now, isQuietNow(settings), true, settings.rules, settings.importantBypassQuiet);
     const updated = channels.slice();
     updated[idx] = next;
     await chrome.storage.local.set({ channels: updated });
@@ -324,7 +335,7 @@ async function probeOneChannelLive(channelId) {
 }
 
 async function checkNewVideos() {
-  const { notifyMode, skipShorts, checkIntervalMin, quiet, liveMode, liveIntervalMin } = await getSettings();
+  const { notifyMode, skipShorts, checkIntervalMin, quiet, liveMode, liveIntervalMin, rules, importantBypassQuiet } = await getSettings();
   const quietActive = isQuietNow({ quiet });
   const live = { mode: liveMode, intervalMin: liveIntervalMin };
   const channels = await getChannels();
@@ -393,13 +404,20 @@ async function checkNewVideos() {
         next.lastPublished = latest.published;
         next.lastVideoUrl = latest.link;
         next.lastThumb = latest.thumb || ch.lastThumb || '';
-        const eff = effectiveMode(ch, notifyMode, quietActive);
-        if (eff !== 'off') {
-          next.unread = (ch.unread || 0) + 1;
-          newVideos += 1;
-        }
-        if (eff === 'all') {
-          await notifyNewVideo(next, latest);
+        const verdict = classifyVideo(rules, latest.title, next.name);
+        if (verdict === 'block') {
+          console.log(`Zil: blocked by rule: ${latest.title}`);
+        } else {
+          // Important videos bypass quiet hours (never a global/per-channel 'off').
+          const quietForThis = quietActive && !(verdict === 'important' && importantBypassQuiet && notifyMode === 'all');
+          const eff = effectiveMode(ch, notifyMode, quietForThis);
+          if (eff !== 'off') {
+            next.unread = (ch.unread || 0) + 1;
+            newVideos += 1;
+          }
+          if (eff === 'all') {
+            await notifyNewVideo(next, latest, verdict === 'important');
+          }
         }
       } else if (latest) {
         // Nothing new, but refresh display fields (name/thumb may change).
@@ -418,7 +436,7 @@ async function checkNewVideos() {
         }
       }
       try {
-        const { next: withLive, counted } = await applyLiveCheck(next, live, notifyMode, now, quietActive);
+        const { next: withLive, counted } = await applyLiveCheck(next, live, notifyMode, now, quietActive, false, rules, importantBypassQuiet);
         if (counted) newVideos += 1;
         updated.push(withLive);
       } catch (liveErr) {
