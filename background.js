@@ -1,4 +1,4 @@
-import { fetchChannelFeed, normalizeChannels, scopeOf, scopePool, scopeAllowsLive, isQuietNow, fetchLiveVideoId, fetchChannelAvatar } from './modules/parser.js';
+import { fetchChannelFeed, normalizeChannels, scopeOf, scopePool, scopeAllowsLive, isQuietNow, fetchLiveVideoId, verifyLiveVideo, fetchChannelAvatar } from './modules/parser.js';
 
 const ALARM_NAME = 'checkYouTubeRSS';
 const BADGE_COLOR = '#dc2626';
@@ -232,13 +232,24 @@ async function applyLiveCheck(base, live, notifyMode, now, quietActive = false, 
   const scope = scopeOf(base);
   const allowLive = scopeAllowsLive(scope) && (live.mode !== 'manual' || base.chLive === 'on') && base.chLive !== 'off';
   const probe = allowLive ? await fetchLiveVideoId(base.id) : { liveId: null, via: 'filtered', debug: '' };
-  const liveId = probe && probe.liveId ? probe.liveId : null;
-  console.log(`Zil: live probe ${base.id} -> via=${probe ? probe.via : 'none'} liveId=${liveId || '-'}`);
+  let liveId = probe && probe.liveId ? probe.liveId : null;
+  let via = probe ? probe.via : 'none';
+  // Upcoming premieres resolve like lives (waiting-room watch page) — verify
+  // against the player response before believing the candidate.
+  if (liveId) {
+    const verdict = await verifyLiveVideo(liveId);
+    console.log(`Zil: live verify ${liveId} -> ${verdict}`);
+    if (verdict === 'upcoming') {
+      liveId = null;
+      via = 'upcoming';
+    }
+  }
+  console.log(`Zil: live probe ${base.id} -> via=${via} liveId=${liveId || '-'}`);
   const next = {
     ...base,
     isLive: !!liveId,
     liveVideoId: liveId,
-    liveVia: probe ? probe.via : 'none',
+    liveVia: via,
     liveDebug: probe && probe.debug ? probe.debug : '',
     liveCheckedAt: now,
   };

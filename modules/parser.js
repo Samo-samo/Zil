@@ -258,6 +258,25 @@ export function findLiveTile(root) {
   return out;
 }
 
+// Upcoming-vs-live verification: a candidate liveId (from redirect,
+// canonical or browse) can point at a scheduled premiere waiting room.
+// The watch page player response settles it: upcoming pages carry
+// upcomingEventData / "isUpcoming", live ones carry liveStreamability.
+// Returns 'live' | 'upcoming' | 'unknown' (unknown = verify on next round,
+// never block a possible live on a failed check).
+export async function verifyLiveVideo(videoId, fetchFn = fetch) {
+  try {
+    const res = await timedFetch(`https://www.youtube.com/watch?v=${videoId}`, { headers: { 'Accept-Language': 'en' } }, fetchFn);
+    if (!res.ok) return 'unknown';
+    const html = await res.text();
+    if (!html || typeof html !== 'string') return 'unknown';
+    if (html.includes('upcomingEventData') || html.includes('"isUpcoming":true')) return 'upcoming';
+    if (html.includes('liveStreamability') || html.includes('"isLive":true')) return 'live';
+    return 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
 // Channel avatar: first author thumbnail on the channel page. Returns '' when
 // the page is a consent/bot shell or the layout changed — callers show an
 // initial-letter placeholder instead.
