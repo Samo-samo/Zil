@@ -1,4 +1,4 @@
-import { lang } from './modules/localizator.js';
+import { lang, getLang } from './modules/localizator.js';
 import { resolveChannelId, fetchChannelFeed, normalizeChannels, isShorts, fetchChannelAvatar, scopeOf, scopePool, CH_SCOPE_ORDER, classifyForChannel, matchRuleDetail } from './modules/parser.js';
 
 const DEFAULT_SETTINGS = { checkIntervalMin: 15, notifyMode: 'all', skipShorts: false, quiet: { enabled: false, start: 23, end: 7 }, liveMode: 'auto', liveIntervalMin: 30 };
@@ -14,11 +14,12 @@ let liveModeCache = 'auto';
 lang(selectedLang).then(async (strings) => {
     uiStrings = strings || {};
     // First paint happens before locales arrive (all-English fallbacks);
-    // repaint once the real strings land.
+    // repaint once the real strings land (home + settings + rules).
     try {
         await renderHome();
+        await loadSettings();
     } catch {
-        // renderHome not ready yet — bottom init covers it.
+        // Not ready yet — bottom init covers it.
     }
 });
 
@@ -109,6 +110,15 @@ if (quietEndSelect && !quietEndSelect.options.length) fillHourOptions(quietEndSe
 async function loadSettings() {
     const { settings = {} } = await chrome.storage.local.get(['settings']);
     const merged = { ...DEFAULT_SETTINGS, ...settings };
+    const langSel = document.getElementById('lang');
+    if (langSel) {
+        try {
+            const stored = await getLang();
+            if (stored === 'en' || stored === 'tr') langSel.value = stored;
+        } catch {
+            // Keep whatever the markup defaults to.
+        }
+    }
     if (checkIntervalSelect) checkIntervalSelect.value = String(merged.checkIntervalMin);
     if (notifyModeSelect) notifyModeSelect.value = merged.notifyMode;
     if (skipShortsToggle) skipShortsToggle.checked = merged.skipShorts === true;
@@ -233,9 +243,9 @@ function buildRuleRow(r, { index, total, onSave, onDelete, onMove, onToggle, rer
     del.title = t('settings.ruleDelete', 'Delete rule');
     del.textContent = '×';
     del.addEventListener('click', onDelete);
+    row.appendChild(toggle);
     row.appendChild(text);
     row.appendChild(meta);
-    row.appendChild(toggle);
     row.appendChild(up);
     row.appendChild(down);
     row.appendChild(edit);
@@ -408,7 +418,7 @@ function showBackupStatus(key, fallback, isError = false) {
 }
 
 document.getElementById('exportBtn').addEventListener('click', async () => {
-    const { channels = [], settings = {}, theme = 'light', ui = {} } = await chrome.storage.local.get(['channels', 'settings', 'theme', 'ui']);
+    const { channels = [], settings = {}, theme = 'light', ui = {}, autoBackups = [] } = await chrome.storage.local.get(['channels', 'settings', 'theme', 'ui', 'autoBackups']);
     const backup = {
         app: 'zil',
         version: 1,
@@ -417,6 +427,7 @@ document.getElementById('exportBtn').addEventListener('click', async () => {
         settings,
         theme,
         ui,
+        autoBackups: Array.isArray(autoBackups) ? autoBackups : [],
     };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -480,6 +491,9 @@ document.getElementById('importFile').addEventListener('change', async (event) =
         }
         if (data && data.ui && typeof data.ui === 'object') {
             await chrome.storage.local.set({ ui: data.ui });
+        }
+        if (data && Array.isArray(data.autoBackups)) {
+            await chrome.storage.local.set({ autoBackups: data.autoBackups.slice(-5) });
         }
         await syncBadge();
         await renderHome();

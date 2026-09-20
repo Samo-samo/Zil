@@ -579,7 +579,7 @@ body.dark .channel-card.is-new {
         position: relative;
         z-index: 10;
         transform: scale(2.2);
-        transform-origin: left center;
+        transform-origin: left;
         box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
     }
 }
