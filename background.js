@@ -88,16 +88,38 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 chrome.notifications.onClicked.addListener((notifId) => {
-  if (notifId.startsWith('zil-live-')) {
-    const videoId = notifId.slice(9);
-    chrome.tabs.create({ url: `https://www.youtube.com/watch?v=${videoId}` });
+  if (notifId.startsWith('zil-test-')) {
     chrome.notifications.clear(notifId);
-  } else if (notifId.startsWith('zil-')) {
-    const videoId = notifId.slice(4);
-    chrome.tabs.create({ url: `https://www.youtube.com/watch?v=${videoId}` });
-    chrome.notifications.clear(notifId);
+    return;
   }
+  let videoId = null;
+  if (notifId.startsWith('zil-live-')) videoId = notifId.slice(9);
+  else if (notifId.startsWith('zil-')) videoId = notifId.slice(4);
+  if (!videoId) return;
+  chrome.tabs.create({ url: `https://www.youtube.com/watch?v=${videoId}` });
+  chrome.notifications.clear(notifId);
+  markVideoRead(videoId).catch((err) => console.warn('Zil: mark-read on click failed', err));
 });
+
+// Opening via an OS notification bubble marks that video read, same as
+// opening from the popup. Finds the owning channel by live / latest / recent id.
+async function markVideoRead(videoId) {
+  const channels = await getChannels();
+  let changed = false;
+  const next = channels.map((c) => {
+    const owns = c.liveVideoId === videoId || c.lastVideoId === videoId
+      || (Array.isArray(c.recent) && c.recent.some((v) => v.videoId === videoId));
+    if (!owns) return c;
+    const readIds = Array.isArray(c.readIds) ? [...c.readIds] : [];
+    if (readIds.includes(videoId)) return c;
+    readIds.unshift(videoId);
+    changed = true;
+    return { ...c, readIds: readIds.slice(0, 100), unread: Math.max(0, (c.unread || 0) - 1) };
+  });
+  if (!changed) return;
+  await chrome.storage.local.set({ channels: next });
+  await updateBadge();
+}
 
 // Popup triggers a manual refresh through this (SW may be asleep otherwise).
 // 'zil-check-live' probes a single stored channel for live status, persists
@@ -244,7 +266,7 @@ async function applyLiveCheck(base, live, notifyMode, now, quietActive = false, 
       via = 'upcoming';
     }
   }
-  console.log(`Zil: live probe ${base.id} -> via=${via} liveId=${liveId || '-'}`);
+  console.log(`Zil: live probe ${base.id} -> via=${via} liveId=${liveId || '-'}${probe && probe.debug ? ' debug=' + probe.debug : ''}`);
   const next = {
     ...base,
     isLive: !!liveId,
