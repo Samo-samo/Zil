@@ -526,24 +526,74 @@ body.dark .channel-card.is-new {
     border-color: var(--primary);
 }
 
-/* Vertical IMPORTANT rail pinned on the card's left border (outside layout). */
-.important-rail {
-    position: absolute;
-    top: -1px;
-    bottom: -1px;
-    left: -1px;
-    writing-mode: vertical-rl;
-    transform: rotate(180deg);
-    display: flex;
+.channel-card.is-important {
+    border-color: var(--primary);
+}
+
+.pill-important {
+    display: inline-flex;
     align-items: center;
-    padding: 6px 3px;
-    border-radius: 10px 4px 4px 10px;
+    padding: 3px 10px;
+    border-radius: 50px;
     background: var(--primary);
+    border: 1px solid var(--primary);
     color: #fff;
-    font-size: 10px;
-    font-weight: 800;
-    letter-spacing: 2px;
-    z-index: 5;
+    font-size: var(--fs-xs);
+    font-weight: 700;
+}
+
+.pill-row {
+    flex-wrap: wrap;
+}
+
+.icon-btn.is-active {
+    background: var(--primary);
+    border: 1px solid var(--primary);
+    color: #fff;
+}
+
+.icon-btn.is-active svg {
+    color: #fff;
+}
+
+/* Rule rows: deterministic two lines (L1 toggle+pattern+delete, L2 meta+transport).
+   Scoped off edit mode so the edit form keeps its own layout. */
+.m-rule:not(.is-editing) {
+    row-gap: 6px;
+}
+
+.m-rule:not(.is-editing) > .icon-btn.small {
+    flex: 0 0 auto;
+    width: 26px;
+    height: 26px;
+    min-width: 26px;
+    min-height: 26px;
+}
+
+.m-rule:not(.is-editing) .rule-pattern {
+    flex: 1 1 40px;
+    min-width: 0;
+    order: 2;
+}
+
+.m-rule:not(.is-editing) > button:nth-of-type(1) {
+    order: 1;
+}
+
+.m-rule:not(.is-editing) > button:nth-of-type(5) {
+    order: 3;
+}
+
+.m-rule:not(.is-editing) .m-rule-meta {
+    order: 4;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.m-rule:not(.is-editing) > button:nth-of-type(2),
+.m-rule:not(.is-editing) > button:nth-of-type(3),
+.m-rule:not(.is-editing) > button:nth-of-type(4) {
+    order: 5;
 }
 
 .channel-card {

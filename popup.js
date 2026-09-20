@@ -1092,7 +1092,7 @@ document.getElementById('viewVideosBtn').addEventListener('click', () => setView
 document.getElementById('viewChannelsBtn').addEventListener('click', () => setView('channels'));
 document.getElementById('filterImportantBtn').addEventListener('click', (e) => {
     importantOnly = !importantOnly;
-    e.currentTarget.classList.toggle('active', importantOnly);
+    e.currentTarget.classList.toggle('is-active', importantOnly);
     renderHome();
 });
 document.getElementById('liveLeft').addEventListener('click', () => {
@@ -1194,12 +1194,6 @@ async function renderVideoList() {
     for (const item of shown) {
         const card = document.createElement('div');
         card.className = 'channel-card' + (isNewVideo(item, item) ? ' is-new' : '') + (item.important ? ' is-important' : '');
-        if (item.important) {
-            const rail = document.createElement('span');
-            rail.className = 'important-rail';
-            rail.textContent = t('home.important', 'Important');
-            card.appendChild(rail);
-        }
         card.title = t('home.openVideo', 'Open video');
         card.addEventListener('click', () => openVideo(item.channelId, item.videoId, item.published, item.link));
         card.addEventListener('auxclick', (e) => {
@@ -1273,6 +1267,13 @@ async function renderVideoList() {
         const pills = document.createElement('div');
         pills.className = 'pill-row';
         let hasPill = false;
+        if (item.important) {
+            const imp = document.createElement('span');
+            imp.className = 'pill pill-important';
+            imp.textContent = t('home.important', 'Important');
+            pills.appendChild(imp);
+            hasPill = true;
+        }
         if (liveModeCache !== 'off' && item.liveHere) {
             const live = document.createElement('span');
             live.className = 'live-btn';
