@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Zil",
-  "version": "1.1.0",
+  "version": "1.0.0",
   "description": "YouTube Notification Extension",
   "homepage_url": "https://github.com/Samo-samo/Zil",
   "permissions": [

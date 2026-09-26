@@ -197,7 +197,7 @@ async function notifyLive(channel, liveId, important = false) {
       type: 'basic',
       iconUrl: NOTIF_ICON,
       title: channel.name || 'Zil',
-      message: tr ? 'Su an canli yayinda — izlemek icin tikla' : 'Live now — click to watch',
+      message: tr ? 'Şu an canlı yayında — izlemek için tıkla' : 'Live now — click to watch',
       requireInteraction: important === true,
     });
   } catch (err) {
