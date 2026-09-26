@@ -448,6 +448,12 @@ body.dark .channel-card.is-new {
     right: 8px;
 }
 
+.card-read-btn {
+    position: absolute;
+    top: 8px;
+    right: 42px;
+}
+
 .ctx-menu {
     position: absolute;
     top: 40px;

@@ -725,6 +725,20 @@ async function openChannel(channelId, active = true) {
     await chrome.tabs.create({ url: `https://www.youtube.com/channel/${channelId}`, active });
 }
 
+async function markSingleRead(channelId, videoId) {
+    const channels = await getChannels();
+    const next = channels.map((c) => {
+        if (c.id !== channelId) return c;
+        const readIds = Array.isArray(c.readIds) ? [...c.readIds] : [];
+        if (!videoId || readIds.includes(videoId)) return c;
+        readIds.unshift(videoId);
+        return { ...c, readIds: readIds.slice(0, 100), unread: Math.max(0, (c.unread || 0) - 1) };
+    });
+    await chrome.storage.local.set({ channels: next });
+    await syncBadge();
+    await renderHome();
+}
+
 // Relative time without locale files: Intl handles the language.
 function timeAgo(iso) {
     const ts = new Date(iso).getTime();
@@ -1213,6 +1227,17 @@ async function renderVideoList() {
             toggleCardMenu(card, item.channelId);
         });
         card.appendChild(more);
+
+        // Marks read without opening anything (covers failed/blocked tab opens).
+        const read = document.createElement('button');
+        read.className = 'icon-btn small card-read-btn';
+        read.title = t('home.markRead', 'Mark as read');
+        read.textContent = '✓';
+        read.addEventListener('click', (e) => {
+            e.stopPropagation();
+            markSingleRead(item.channelId, item.videoId);
+        });
+        card.appendChild(read);
 
         if (item.thumb) {
             const thumb = document.createElement('img');
