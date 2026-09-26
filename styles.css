@@ -532,8 +532,8 @@ body.dark .channel-card.is-new {
     border-color: var(--primary);
 }
 
-.channel-card.is-important {
-    border-color: var(--primary);
+.channel-card.is-paused {
+    opacity: 0.6;
 }
 
 .pill-important {

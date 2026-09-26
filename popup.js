@@ -1,7 +1,7 @@
 import { lang, getLang } from './modules/localizator.js';
 import { resolveChannelId, fetchChannelFeed, normalizeChannels, isShorts, fetchChannelAvatar, scopeOf, scopePool, CH_SCOPE_ORDER, classifyForChannel, matchRuleDetail } from './modules/parser.js';
 
-const DEFAULT_SETTINGS = { checkIntervalMin: 15, notifyMode: 'all', skipShorts: false, quiet: { enabled: false, start: 23, end: 7 }, liveMode: 'auto', liveIntervalMin: 30 };
+const DEFAULT_SETTINGS = { checkIntervalMin: 15, notifyMode: 'all', skipShorts: false, quiet: { enabled: false, start: 23, end: 7 }, liveMode: 'auto', liveIntervalMin: 30, paused: false };
 const REFRESH_TIMEOUT_MS = 25000;
 
 let selectedLang = '';
@@ -94,6 +94,7 @@ const quietEndSelect = document.getElementById('quietEnd');
 const liveModeSelect = document.getElementById('liveMode');
 const liveIntervalSelect = document.getElementById('liveInterval');
 const importantBypassToggle = document.getElementById('importantBypass');
+const pauseAllToggle = document.getElementById('pauseAll');
 
 function fillHourOptions(select) {
     for (let h = 0; h < 24; h++) {
@@ -129,6 +130,7 @@ async function loadSettings() {
     if (liveModeSelect) liveModeSelect.value = ['off', 'auto', 'manual'].includes(merged.liveMode) ? merged.liveMode : 'auto';
     if (liveIntervalSelect) liveIntervalSelect.value = String([15, 30, 60, 120].includes(merged.liveIntervalMin) ? merged.liveIntervalMin : 30);
     if (importantBypassToggle) importantBypassToggle.checked = merged.importantBypassQuiet !== false;
+    if (pauseAllToggle) pauseAllToggle.checked = merged.paused === true;
     updateLiveIntervalState();
     await renderRules();
 }
@@ -153,6 +155,7 @@ async function saveSettings() {
         liveMode: liveModeSelect ? liveModeSelect.value : 'auto',
         liveIntervalMin: liveIntervalSelect ? Number(liveIntervalSelect.value) || 30 : 30,
         importantBypassQuiet: importantBypassToggle ? importantBypassToggle.checked : true,
+        paused: pauseAllToggle ? pauseAllToggle.checked : false,
     };
     await chrome.storage.local.set({ settings });
     // Background rebuilds the alarm via storage.onChanged.
@@ -168,6 +171,7 @@ if (liveModeSelect) {
     liveModeSelect.addEventListener('change', saveSettings);
     liveModeSelect.addEventListener('change', updateLiveIntervalState);
 }
+if (pauseAllToggle) pauseAllToggle.addEventListener('change', saveSettings);
 if (liveIntervalSelect) liveIntervalSelect.addEventListener('change', saveSettings);
 if (importantBypassToggle) importantBypassToggle.addEventListener('change', saveSettings);
 
@@ -901,6 +905,26 @@ async function openChannelModal(channelId) {
         }
     ));
 
+    const pauseRow = document.createElement('div');
+    pauseRow.className = 'flex setting-row';
+    const pauseLab = document.createElement('label');
+    pauseLab.htmlFor = `chPaused-${ch.id}`;
+    pauseLab.textContent = t('home.pauseChannel', 'Pause this channel');
+    const pauseCheck = document.createElement('input');
+    pauseCheck.type = 'checkbox';
+    pauseCheck.id = `chPaused-${ch.id}`;
+    pauseCheck.className = 'check';
+    pauseCheck.checked = ch.paused === true;
+    pauseCheck.addEventListener('change', async () => {
+        const all = await getChannels();
+        await chrome.storage.local.set({ channels: all.map((c) => (c.id === ch.id ? { ...c, paused: pauseCheck.checked } : c)) });
+        await syncBadge();
+        await renderHome();
+    });
+    pauseRow.appendChild(pauseLab);
+    pauseRow.appendChild(pauseCheck);
+    chSec.appendChild(pauseRow);
+
     const mRulesLabel = document.createElement('div');
     mRulesLabel.className = 'section-label';
     mRulesLabel.style.marginTop = '12px';
@@ -1350,7 +1374,7 @@ async function renderChannelList() {
     empty.style.display = visible.length ? 'none' : 'block';
     for (const ch of visible) {
         const card = document.createElement('div');
-        card.className = 'channel-card ch-card';
+        card.className = 'channel-card ch-card' + (ch.paused ? ' is-paused' : '');
         const isOpen = expandedChannels.has(ch.id);
 
         // --- Header: avatar + name + customize + expand arrow ---

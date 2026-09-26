@@ -41,6 +41,7 @@
     "copied": "Kopyalandı",
     "customize": "Özelleştir",
     "close": "Kapat",
+    "pauseChannel": "Bu kanalı duraklat",
     "added": "Eklenme",
     "lastCheck": "Son kontrol",
     "lastError": "Son kontrol başarısız"
@@ -54,6 +55,7 @@
       "tr": "Türkçe"
     },
     "advanced": "Gelişmiş",
+    "pause": "Her şeyi duraklat",
     "groups": {
       "checks": "Kontroller",
       "notifications": "Bildirimler",

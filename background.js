@@ -17,7 +17,7 @@ async function migrateOnce() {
   await updateBadge();
 }
 
-export const DEFAULT_SETTINGS = { checkIntervalMin: 15, notifyMode: 'all', skipShorts: false, quiet: { enabled: false, start: 23, end: 7 }, liveMode: 'auto', liveIntervalMin: 30 };
+export const DEFAULT_SETTINGS = { checkIntervalMin: 15, notifyMode: 'all', skipShorts: false, quiet: { enabled: false, start: 23, end: 7 }, liveMode: 'auto', liveIntervalMin: 30, paused: false };
 // notifyMode: 'all' (notification + badge) | 'badge' (badge only) | 'off'
 // liveMode: 'off' (no live checks at all) | 'auto' (all channels unless chLive==='off') | 'manual' (only chLive==='on')
 
@@ -38,6 +38,7 @@ async function getSettings() {
   if (![15, 30, 60, 120].includes(merged.checkIntervalMin)) merged.checkIntervalMin = 15;
   if (!['all', 'badge', 'off'].includes(merged.notifyMode)) merged.notifyMode = 'all';
   merged.skipShorts = merged.skipShorts === true;
+  merged.paused = merged.paused === true;
   merged.rules = Array.isArray(merged.rules) ? merged.rules : [];
   merged.importantBypassQuiet = merged.importantBypassQuiet !== false;
   if (!['off', 'auto', 'manual'].includes(merged.liveMode)) merged.liveMode = 'auto';
@@ -176,7 +177,7 @@ async function updateBadge() {
       return;
     }
     const channels = await getChannels();
-    const total = channels.reduce((n, c) => n + (c.unread || 0), 0);
+    const total = channels.filter((c) => !c.paused).reduce((n, c) => n + (c.unread || 0), 0);
     await chrome.action.setBadgeBackgroundColor({ color: BADGE_COLOR });
     await chrome.action.setBadgeText({ text: total > 0 ? String(total) : '' });
   } catch (err) {
@@ -335,10 +336,16 @@ async function probeOneChannelLive(channelId) {
 }
 
 async function checkNewVideos() {
-  const { notifyMode, skipShorts, checkIntervalMin, quiet, liveMode, liveIntervalMin, rules, importantBypassQuiet } = await getSettings();
+  const { notifyMode, skipShorts, checkIntervalMin, quiet, liveMode, liveIntervalMin, rules, importantBypassQuiet, paused } = await getSettings();
   const quietActive = isQuietNow({ quiet });
   const live = { mode: liveMode, intervalMin: liveIntervalMin };
   const channels = await getChannels();
+  if (paused) {
+    // Master kill-switch: no checks, no notifications; badge hidden but
+    // unread counts are kept so unpausing restores the state.
+    await chrome.action.setBadgeText({ text: '' });
+    return { ok: true, checked: 0, newVideos: 0, skipped: 0, paused: true };
+  }
   if (!channels.length) {
     await updateBadge();
     return { ok: true, checked: 0, newVideos: 0 };
@@ -350,6 +357,12 @@ async function checkNewVideos() {
   const nowMs = Date.now();
   const updated = [];
   for (const ch of channels) {
+    // Paused channels are skipped entirely (data kept, resumes on unpause).
+    if (ch.paused) {
+      skipped += 1;
+      updated.push(ch);
+      continue;
+    }
     // Error backoff: repeatedly failing channels are checked less often.
     if (ch.nextRetryAt && nowMs < new Date(ch.nextRetryAt).getTime()) {
       skipped += 1;

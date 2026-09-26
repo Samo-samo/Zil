@@ -41,6 +41,7 @@
     "copied": "Copied",
     "customize": "Customize",
     "close": "Close",
+    "pauseChannel": "Pause this channel",
     "added": "Added",
     "lastCheck": "Last check",
     "lastError": "Last check failed"
@@ -54,6 +55,7 @@
       "tr": "Turkish"
     },
     "advanced": "Advanced",
+    "pause": "Pause everything",
     "groups": {
       "checks": "Checks",
       "notifications": "Notifications",
