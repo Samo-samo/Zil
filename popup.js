@@ -548,8 +548,7 @@ function hideAddError() {
     document.getElementById('addError').hidden = true;
 }
 
-document.getElementById('saveChannelBtn').addEventListener('click', async (event) => {
-    const btn = event.currentTarget;
+async function submitChannelInput(btn) {
     const channelInput = document.getElementById('channelInput');
     const raw = channelInput ? channelInput.value.trim() : '';
     if (!raw) return;
@@ -574,6 +573,17 @@ document.getElementById('saveChannelBtn').addEventListener('click', async (event
         btn.disabled = false;
         btn.textContent = originalText;
     }
+}
+
+document.getElementById('saveChannelBtn').addEventListener('click', (event) => {
+    submitChannelInput(event.currentTarget);
+});
+
+document.getElementById('channelInput').addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        submitChannelInput(document.getElementById('saveChannelBtn'));
+    }
 });
 
 // Channel picker: when a handle/page resolves to several channel IDs, let the
@@ -591,13 +601,45 @@ async function showCandidatePicker(candidates, raw) {
     const { channels = [] } = await chrome.storage.local.get(['channels']);
     const tracked = new Set((Array.isArray(channels) ? channels : []).map((c) => c && c.id));
     list.textContent = '';
-    for (const c of candidates) {
+    const avatars = await Promise.all(candidates.map(async (c) => {
+        try {
+            return await fetchChannelAvatar(c.id);
+        } catch {
+            return '';
+        }
+    }));
+    candidates.forEach((c, i) => {
         const row = document.createElement('div');
         row.className = 'candidate-row';
+        const av = avatars[i];
+        if (av) {
+            const img = document.createElement('img');
+            img.className = 'avatar';
+            img.src = av;
+            img.alt = '';
+            img.loading = 'lazy';
+            row.appendChild(img);
+        } else {
+            const ph = document.createElement('div');
+            ph.className = 'avatar avatar-ph';
+            ph.textContent = ((c.name || c.id || '?').trim().charAt(0) || '?').toUpperCase();
+            row.appendChild(ph);
+        }
+        const textWrap = document.createElement('div');
+        textWrap.className = 'grow candidate-text';
         const name = document.createElement('strong');
-        name.className = 'grow channel-name';
+        name.className = 'channel-name';
         name.textContent = c.name || c.id;
-        name.title = c.id;
+        const link = document.createElement('button');
+        link.className = 'channel-link candidate-link';
+        link.textContent = `youtube.com/channel/${c.id}`;
+        link.title = t('home.openChannel', 'Open channel');
+        link.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openChannel(c.id);
+        });
+        textWrap.appendChild(name);
+        textWrap.appendChild(link);
         const add = document.createElement('button');
         add.className = 'btn secondary candidate-add';
         add.textContent = t('addingPage.add', 'Add');
@@ -621,10 +663,10 @@ async function showCandidatePicker(candidates, raw) {
                 }
             });
         }
-        row.appendChild(name);
+        row.appendChild(textWrap);
         row.appendChild(add);
         list.appendChild(row);
-    }
+    });
     picker.hidden = false;
 }
 
