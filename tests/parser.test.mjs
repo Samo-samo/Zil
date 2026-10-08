@@ -17,6 +17,8 @@ import {
   isQuietNow,
   scopeOf,
   scopePool,
+  scopeIncludes,
+  scopeFromBoxes,
   scopeAllowsLive,
   classifyVideo,
   classifyForChannel,
@@ -209,6 +211,18 @@ describe('content scope', () => {
     assert.equal(scopePool('shorts-live', vs, false).length, 1);
     assert.equal(scopeAllowsLive('shorts-live'), true);
     assert.equal(scopeAllowsLive('videos'), false);
+  });
+
+  it('maps checkbox sets to scopes and back', () => {
+    assert.equal(scopeFromBoxes(['videos', 'shorts', 'live']), 'all');
+    assert.equal(scopeFromBoxes(['videos', 'live']), 'videos-live');
+    assert.equal(scopeFromBoxes(['shorts', 'live']), 'shorts-live');
+    assert.equal(scopeFromBoxes(['live']), 'live');
+    assert.equal(scopeFromBoxes([]), 'default');
+    assert.ok(scopeIncludes('videos-shorts', 'videos'));
+    assert.ok(!scopeIncludes('videos-shorts', 'live'));
+    assert.ok(scopeIncludes('all', 'shorts'));
+    assert.ok(!scopeIncludes('default', 'videos'));
   });
 });
 

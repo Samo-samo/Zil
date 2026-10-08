@@ -1,5 +1,5 @@
 import { lang, getLang } from './modules/localizator.js';
-import { resolveChannelId, fetchChannelFeed, normalizeChannels, isShorts, fetchChannelAvatar, scopeOf, scopePool, CH_SCOPE_ORDER, classifyForChannel, matchRuleDetail } from './modules/parser.js';
+import { resolveChannelId, resolveChannelCandidates, fetchChannelFeed, normalizeChannels, isShorts, fetchChannelAvatar, scopeOf, scopePool, scopeIncludes, scopeFromBoxes, CH_SCOPE_ORDER, classifyForChannel, matchRuleDetail } from './modules/parser.js';
 
 const DEFAULT_SETTINGS = { checkIntervalMin: 15, notifyMode: 'all', skipShorts: false, quiet: { enabled: false, start: 23, end: 7 }, liveMode: 'auto', liveIntervalMin: 30, paused: false };
 const REFRESH_TIMEOUT_MS = 25000;
@@ -554,15 +554,84 @@ document.getElementById('saveChannelBtn').addEventListener('click', async (event
     const raw = channelInput ? channelInput.value.trim() : '';
     if (!raw) return;
     hideAddError();
+    hideCandidatePicker();
     btn.disabled = true;
     const originalText = btn.textContent;
     btn.textContent = t('addingPage.adding', 'Adding…');
     try {
-        const channelId = await resolveChannelId(raw);
+        const candidates = await resolveChannelCandidates(raw);
+        if (candidates.length > 1) {
+            showCandidatePicker(candidates, raw);
+            return;
+        }
+        await addChannelById(candidates[0].id);
+        channelInput.value = '';
+        switchPage('homepage');
+        await renderHome();
+    } catch (err) {
+        showAddError(err && err.message ? err.message : 'fetch');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+    }
+});
+
+// Channel picker: when a handle/page resolves to several channel IDs, let the
+// user choose instead of silently taking the first one.
+function hideCandidatePicker() {
+    document.getElementById('candidatePicker').hidden = true;
+    document.getElementById('candidateList').textContent = '';
+}
+
+async function showCandidatePicker(candidates, raw) {
+    const picker = document.getElementById('candidatePicker');
+    const list = document.getElementById('candidateList');
+    document.getElementById('candidateTitle').textContent =
+        `${t('addingPage.pickTitle', 'Which channel did you mean?')} (${candidates.length})`;
+    const { channels = [] } = await chrome.storage.local.get(['channels']);
+    const tracked = new Set((Array.isArray(channels) ? channels : []).map((c) => c && c.id));
+    list.textContent = '';
+    for (const c of candidates) {
+        const row = document.createElement('div');
+        row.className = 'candidate-row';
+        const name = document.createElement('strong');
+        name.className = 'grow channel-name';
+        name.textContent = c.name || c.id;
+        name.title = c.id;
+        const add = document.createElement('button');
+        add.className = 'btn secondary candidate-add';
+        add.textContent = t('addingPage.add', 'Add');
+        if (tracked.has(c.id)) {
+            add.disabled = true;
+            add.textContent = t('addingPage.tracked', 'tracked');
+        } else {
+            add.addEventListener('click', async () => {
+                hideAddError();
+                add.disabled = true;
+                try {
+                    await addChannelById(c.id);
+                    document.getElementById('channelInput').value = '';
+                    hideCandidatePicker();
+                    switchPage('homepage');
+                    await renderHome();
+                } catch (err) {
+                    showAddError(err && err.message ? err.message : 'fetch');
+                } finally {
+                    add.disabled = false;
+                }
+            });
+        }
+        row.appendChild(name);
+        row.appendChild(add);
+        list.appendChild(row);
+    }
+    picker.hidden = false;
+}
+
+async function addChannelById(channelId) {
         const channels = await getChannels();
         if (channels.some((c) => c.id === channelId)) {
-            showAddError('exists');
-            return;
+            throw new Error('exists');
         }
         const feed = await fetchChannelFeed(channelId);
         const { settings = {} } = await chrome.storage.local.get(['settings']);
@@ -601,16 +670,7 @@ document.getElementById('saveChannelBtn').addEventListener('click', async (event
             lastError: null,
         });
         await chrome.storage.local.set({ channels });
-        channelInput.value = '';
-        switchPage('homepage');
-        await renderHome();
-    } catch (err) {
-        showAddError(err && err.message ? err.message : 'fetch');
-    } finally {
-        btn.disabled = false;
-        btn.textContent = originalText;
-    }
-});
+}
 
 document.getElementById('refreshBtn').addEventListener('click', async (event) => {
     const btn = event.currentTarget;
@@ -875,23 +935,80 @@ async function openChannelModal(channelId) {
         }
     ));
 
-    chSec.appendChild(selectRow(
-        `chScope-${ch.id}`,
-        t('home.contentScope', 'Content'),
-        CH_SCOPE_ORDER.map((opt) => [opt, scopeLabel(opt)]),
-        scopeOf(ch),
-        async (v) => {
-            const all = await getChannels();
-            await chrome.storage.local.set({
-                channels: all.map((c) => {
-                    if (c.id !== ch.id) return c;
-                    const { chShorts: _legacy, ...rest } = c;
-                    return { ...rest, chScope: v };
-                }),
-            });
-            await renderHome();
-        }
-    ));
+    // Content scope as checkboxes: Videos / Shorts / Live. A master
+    // "follow global" box disables the trio (they then mirror the global
+    // filter); unchecking it reveals per-channel control. At least one box
+    // always stays on — an empty scope is meaningless.
+    const scopeLabel = document.createElement('div');
+    scopeLabel.className = 'section-label';
+    scopeLabel.textContent = t('home.contentScope', 'Content');
+    chSec.appendChild(scopeLabel);
+
+    const followRow = document.createElement('label');
+    followRow.className = 'check-row';
+    const followCheck = document.createElement('input');
+    followCheck.type = 'checkbox';
+    followCheck.className = 'check small';
+    followCheck.checked = scopeOf(ch) === 'default';
+    const followText = document.createElement('span');
+    followText.textContent = t('home.followGlobal', 'Follow global setting');
+    followRow.appendChild(followCheck);
+    followRow.appendChild(followText);
+    chSec.appendChild(followRow);
+
+    const scopeBoxes = {};
+    const boxDefs = [
+        ['videos', t('home.contentVideos', 'Videos')],
+        ['shorts', t('home.contentShorts', 'Shorts')],
+        ['live', t('home.contentLive', 'Live streams')],
+    ];
+    const { settings: scopeSettings = {} } = await chrome.storage.local.get(['settings']);
+    const globalHideShorts = scopeSettings.skipShorts === true;
+    const currentScope = scopeOf(ch);
+    for (const [key, label] of boxDefs) {
+        const row = document.createElement('label');
+        row.className = 'check-row sub';
+        const box = document.createElement('input');
+        box.type = 'checkbox';
+        box.className = 'check small';
+        box.checked = currentScope === 'default'
+            ? (key === 'videos' || (key === 'shorts' && !globalHideShorts) || key === 'live')
+            : scopeIncludes(currentScope, key);
+        box.disabled = currentScope === 'default';
+        box.addEventListener('change', async () => {
+            const on = ['videos', 'shorts', 'live'].filter((k) => (k === key ? box.checked : scopeBoxes[k].checked));
+            if (!on.length) {
+                box.checked = true;
+                return;
+            }
+            await persistScope(scopeFromBoxes(on));
+        });
+        const text = document.createElement('span');
+        text.textContent = label;
+        row.appendChild(box);
+        row.appendChild(text);
+        chSec.appendChild(row);
+        scopeBoxes[key] = box;
+    }
+    followCheck.addEventListener('change', async () => {
+        await persistScope(followCheck.checked ? 'default' : scopeFromBoxes(
+            ['videos', 'shorts', 'live'].filter((k) => scopeBoxes[k].checked)
+        ));
+        const disabled = followCheck.checked;
+        for (const k of ['videos', 'shorts', 'live']) scopeBoxes[k].disabled = disabled;
+    });
+
+    async function persistScope(scope) {
+        const all = await getChannels();
+        await chrome.storage.local.set({
+            channels: all.map((c) => {
+                if (c.id !== ch.id) return c;
+                const { chShorts: _legacy, ...rest } = c;
+                return { ...rest, chScope: scope };
+            }),
+        });
+        await renderHome();
+    }
 
     chSec.appendChild(selectRow(
         `chLive-${ch.id}`,

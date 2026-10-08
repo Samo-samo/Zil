@@ -31,6 +31,10 @@
     "checkLive": "Check live",
     "chNotify": "Channel notifications",
     "contentScope": "Content",
+    "followGlobal": "Follow global setting",
+    "contentVideos": "Videos",
+    "contentShorts": "Shorts",
+    "contentLive": "Live streams",
     "channelSection": "Channel",
     "editRule": "Edit rule",
     "save": "Save",
@@ -144,6 +148,9 @@
     "adding": "Adding…",
     "errorInvalid": "Could not find a channel for that input. Paste a channel ID, channel URL or @handle.",
     "errorFetch": "Could not read the channel feed. Check the input and try again.",
-    "errorExists": "This channel is already tracked."
+    "errorExists": "This channel is already tracked.",
+    "pickTitle": "Which channel did you mean?",
+    "add": "Add",
+    "tracked": "tracked"
   }
 }

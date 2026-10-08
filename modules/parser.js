@@ -58,6 +58,31 @@ export function scopeAllowsLive(scope) {
   return scope !== 'videos' && scope !== 'shorts';
 }
 
+// Checkbox model for the channel modal: which content kinds a scope contains.
+export function scopeIncludes(scope, kind) {
+  if (scope === 'all') return true;
+  if (scope === 'videos') return kind === 'videos';
+  if (scope === 'shorts') return kind === 'shorts';
+  if (scope === 'live') return kind === 'live';
+  if (scope === 'videos-shorts') return kind === 'videos' || kind === 'shorts';
+  if (scope === 'videos-live') return kind === 'videos' || kind === 'live';
+  if (scope === 'shorts-live') return kind === 'shorts' || kind === 'live';
+  return false;
+}
+
+// Inverse: checked boxes → scope key. Empty set falls back to 'default'.
+export function scopeFromBoxes(on) {
+  const set = new Set(on || []);
+  if (set.has('videos') && set.has('shorts') && set.has('live')) return 'all';
+  if (set.has('videos') && set.has('shorts')) return 'videos-shorts';
+  if (set.has('videos') && set.has('live')) return 'videos-live';
+  if (set.has('shorts') && set.has('live')) return 'shorts-live';
+  if (set.has('videos')) return 'videos';
+  if (set.has('shorts')) return 'shorts';
+  if (set.has('live')) return 'live';
+  return 'default';
+}
+
 // Quiet hours suppress OS notifications (badge still counts). Handles
 // overnight windows (e.g. 23 -> 7) as well as same-day ones.
 export function isQuietNow(settings, now = new Date()) {
