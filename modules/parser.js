@@ -426,10 +426,15 @@ export async function fetchChannelFeed(channelId, fetchFn = fetch) {
 // Handle pages are scraped cookieless, so YouTube sometimes answers with a
 // consent/bot page that contains no ID — that surfaces as 'unresolvable'.
 export async function resolveChannelId(input, fetchFn = fetch) {
+  const list = await resolveChannelCandidates(input, fetchFn);
+  return list[0].id;
+}
+
+export async function resolveChannelCandidates(input, fetchFn = fetch) {
   const raw = (input || '').trim();
   if (!raw) throw new Error('empty');
 
-  if (isChannelId(raw)) return raw;
+  if (isChannelId(raw)) return [{ id: raw, name: '', source: 'direct' }];
 
   const direct =
     raw.match(/youtube\.com\/channel\/(UC[A-Za-z0-9_-]{22})/) ||
@@ -437,37 +442,51 @@ export async function resolveChannelId(input, fetchFn = fetch) {
     raw.match(ID_IN_TEXT_RE);
   if (direct) {
     const id = direct[1] || direct[0];
-    if (isChannelId(id)) return id;
+    if (isChannelId(id)) return [{ id, name: '', source: 'direct' }];
   }
 
   if (/youtube\.com\/watch|youtu\.be\//.test(raw)) {
     throw new Error('not-a-channel');
   }
 
+  return scrapeCandidates(buildPageUrls(raw), fetchFn);
+}
+
+// Split out so candidates stay available without changing resolveChannelId's
+// string contract (existing callers keep working).
+function buildPageUrls(raw) {
   // Candidate page URLs, tried in order. /c/ and /user/ are legacy and often
   // 404 — the handle form is the one that usually works.
-  const handleMatch = raw.match(/@([A-Za-z0-9._-]+)/);
-  const legacyMatch = raw.match(/youtube\.com\/(?:c|user)\/([A-Za-z0-9._-]+)/i);
+  // Handle chars are Unicode-aware (TR handles like @YunusEmreGündüz exist):
+  // \p{L}\p{N} with the /u flag covers letters like ü/ğ/ş, plus digits/._-.
+  const handleMatch = raw.match(/@([\p{L}\p{N}._-]+)/u);
+  const legacyMatch = raw.match(/youtube\.com\/(?:c|user)\/([^\s/?#]+)/i);
   const bareWord = !/^https?:\/\//i.test(raw) && !raw.includes('/') && !raw.includes(' ');
-  let pageUrls = [];
   if (handleMatch) {
-    pageUrls = [`https://www.youtube.com/@${handleMatch[1]}`, `https://www.youtube.com/@${handleMatch[1]}/videos`];
+    // encodeURI keeps ü/ğ/ş intact for YouTube while escaping spaces etc.
+    const handle = encodeURI(handleMatch[1]);
+    return [`https://www.youtube.com/@${handle}`, `https://www.youtube.com/@${handle}/videos`];
   } else if (/^https?:\/\//i.test(raw)) {
-    pageUrls = [raw];
+    return [raw];
   } else if (legacyMatch) {
-    pageUrls = [`https://www.youtube.com/@${legacyMatch[1]}`, raw.startsWith('http') ? raw : `https://www.youtube.com/c/${legacyMatch[1]}`];
+    return [`https://www.youtube.com/@${legacyMatch[1]}`, raw.startsWith('http') ? raw : `https://www.youtube.com/c/${legacyMatch[1]}`];
   } else if (bareWord) {
-    pageUrls = [`https://www.youtube.com/@${raw.replace(/^@/, '')}`];
+    return [`https://www.youtube.com/@${raw.replace(/^@/, '')}`];
   } else if (/^UC[A-Za-z0-9_-]+$/.test(raw)) {
     throw new Error('unresolvable');
   } else {
     throw new Error('unresolvable');
   }
+}
+
+async function scrapeCandidates(pageUrls, fetchFn) {
 
   // The page HEAD may contain channelIds of OTHER channels (featured,
   // trailer owner, topic links) BEFORE the owner's — e.g. @Halilcann's page
   // lists UCPnDqNhD1e51rcRqucXEg0A first while the owner is UCjpDOkJ90wnesiVMyUMs5xA.
   // The canonical link is authoritative for the page owner: check it first.
+  // Returns ranked candidates instead of first-match: [{ id, name, source }].
+  // The popup shows a picker when more than one distinct ID is found.
   const idPatterns = [
     /<link rel="canonical" href="https:\/\/www\.youtube\.com\/channel\/(UC[A-Za-z0-9_-]{22})/,
     /"channelId":"(UC[A-Za-z0-9_-]{22})"/,
@@ -476,6 +495,14 @@ export async function resolveChannelId(input, fetchFn = fetch) {
     /youtube\.com\/channel\/(UC[A-Za-z0-9_-]{22})/,
     /channel_id=(UC[A-Za-z0-9_-]{22})/,
   ];
+  // Ranked scan: canonical first (page owner), then body patterns.
+  // Collects up to 3 distinct IDs with a display name each so the caller can
+  // offer a choice instead of silently picking the wrong channel.
+  const seen = new Map();
+  const pageName = (html) => {
+    const t = pick(html, /<title>([\s\S]*?)(?: - YouTube)?<\/title>/);
+    return decodeEntities(t || '').trim();
+  };
   for (const pageUrl of pageUrls) {
     let html = '';
     try {
@@ -485,10 +512,16 @@ export async function resolveChannelId(input, fetchFn = fetch) {
     } catch {
       continue;
     }
+    const name = pageName(html);
     for (const re of idPatterns) {
       const found = html.match(re);
-      if (found && isChannelId(found[1])) return found[1];
+      if (found && isChannelId(found[1]) && !seen.has(found[1])) {
+        seen.set(found[1], { id: found[1], name, source: pageUrl });
+        if (seen.size >= 3) break;
+      }
     }
+    if (seen.size >= 3) break;
   }
-  throw new Error('unresolvable');
+  if (!seen.size) throw new Error('unresolvable');
+  return [...seen.values()];
 }

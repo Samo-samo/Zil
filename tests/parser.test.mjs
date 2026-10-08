@@ -9,6 +9,7 @@ import {
   isShorts,
   normalizeChannels,
   resolveChannelId,
+  resolveChannelCandidates,
   fetchChannelFeed,
   fetchLiveVideoId,
   verifyLiveVideo,
@@ -100,6 +101,31 @@ describe('channel ids and urls', () => {
       + `<body>{"channelId":"${other}","externalId":"${other}"}</body>`;
     const fetchFn = async () => ({ ok: true, text: async () => page });
     assert.equal(await resolveChannelId('@somebody', fetchFn), ID);
+  });
+
+  it('keeps Unicode handles intact when building page urls', async () => {
+    const seen = [];
+    const fetchFn = async (u) => {
+      seen.push(u);
+      return { ok: true, text: async () => `<title>Yunus Emre Gündüz - YouTube</title><link rel="canonical" href="https://www.youtube.com/channel/${ID}">` };
+    };
+    const list = await resolveChannelCandidates('@YunusEmreGündüz', fetchFn);
+    assert.equal(list[0].id, ID);
+    assert.ok(seen[0].includes('@YunusEmreG'), 'handle not truncated, got ' + seen[0]);
+    assert.ok(!seen[0].includes('@YunusEmreG/') && !seen[0].endsWith('@YunusEmreG'), 'full handle preserved');
+  });
+
+  it('returns ranked candidates instead of first-match only', async () => {
+    const other = 'UCPnDqNhD1e51rcRqucXEg0A';
+    const page = `<title>Some Channel - YouTube</title>`
+      + `<link rel="canonical" href="https://www.youtube.com/channel/${ID}">`
+      + `<body>{"channelId":"${other}"}</body>`;
+    const fetchFn = async () => ({ ok: true, text: async () => page });
+    const { resolveChannelCandidates: rcc } = await import('../modules/parser.js');
+    const list = await rcc('@somebody', fetchFn);
+    assert.equal(list.length, 2);
+    assert.equal(list[0].id, ID);
+    assert.equal(list[1].id, other);
   });
 
   it('rejects unresolvable handles', async () => {

@@ -414,6 +414,16 @@ async function checkNewVideos() {
         next.lastPublished = shown.published;
         next.lastVideoUrl = shown.link;
         next.lastThumb = shown.thumb || ch.lastThumb || '';
+      } else if (newest && newest.videoId !== ch.lastVideoId && (!latest || latest.videoId === ch.lastVideoId)) {
+        // Only filtered-out items (e.g. hidden Shorts) are newer than the
+        // baseline: advance silently so they never re-trigger a notification
+        // for the already-known video below them. No unread, no badge.
+        next.lastVideoId = newest.videoId;
+        const shown = latest || newest;
+        next.lastVideoTitle = shown.title;
+        next.lastPublished = shown.published;
+        next.lastVideoUrl = shown.link;
+        next.lastThumb = shown.thumb || ch.lastThumb || '';
       } else if (newest && newest.videoId !== ch.lastVideoId && latest && latest.videoId !== ch.lastVideoId) {
         next.lastVideoId = latest.videoId;
         next.lastVideoTitle = latest.title;
@@ -422,6 +432,8 @@ async function checkNewVideos() {
         next.lastThumb = latest.thumb || ch.lastThumb || '';
         const verdict = classifyForChannel(ch.rules, rules, latest.title, next.name);
         if (verdict === 'block') {
+          console.log(`Zil: blocked by rule: ${latest.title}`);
+        } else {
           console.log(`Zil: blocked by rule: ${latest.title}`);
         } else {
           // Important videos bypass quiet hours (never a global/per-channel 'off').
