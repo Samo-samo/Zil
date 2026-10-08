@@ -818,8 +818,8 @@ function toggleCardMenu(card, channelId) {
     del.textContent = t('home.remove', 'Remove channel');
     del.addEventListener('click', (e) => {
         e.stopPropagation();
-        closeCardMenu();
-        removeChannel(channelId);
+        if (del.dataset.armed === '1') closeCardMenu();
+        armConfirmButton(del, () => removeChannel(channelId));
     });
     menu.appendChild(cust);
     menu.appendChild(del);
@@ -1239,6 +1239,29 @@ async function removeChannel(channelId) {
     await chrome.storage.local.set({ channels: channels.filter((c) => c.id !== channelId) });
     await syncBadge();
     await renderHome();
+}
+
+// Two-step delete guard: first click arms ("are you sure?"), second confirms.
+// Auto-disarms after 3s so a stray armed button never lingers.
+function armConfirmButton(btn, action) {
+    if (btn.dataset.armed === '1') {
+        delete btn.dataset.armed;
+        btn.classList.remove('armed');
+        btn.textContent = btn.dataset.label || btn.textContent;
+        action();
+        return;
+    }
+    btn.dataset.armed = '1';
+    btn.dataset.label = btn.textContent;
+    btn.classList.add('armed');
+    btn.textContent = t('home.confirmRemove', 'Are you sure?');
+    setTimeout(() => {
+        if (btn.isConnected && btn.dataset.armed === '1') {
+            delete btn.dataset.armed;
+            btn.classList.remove('armed');
+            btn.textContent = btn.dataset.label;
+        }
+    }, 3000);
 }
 
 async function markAllRead() {
@@ -1666,7 +1689,7 @@ async function renderChannelList() {
             const delBtn = document.createElement('button');
             delBtn.className = 'mini-btn danger';
             delBtn.textContent = t('home.remove', 'Remove channel');
-            delBtn.addEventListener('click', () => removeChannel(ch.id));
+            delBtn.addEventListener('click', () => armConfirmButton(delBtn, () => removeChannel(ch.id)));
             let liveBtn = null;
             if (liveModeCache !== 'off') {
             liveBtn = document.createElement('button');

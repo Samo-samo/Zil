@@ -21,6 +21,7 @@
     "channelOnly": "this channel",
     "unread": "New videos",
     "remove": "Remove channel",
+    "confirmRemove": "Are you sure?",
     "openVideo": "Open video",
     "openChannel": "Open channel",
     "noThumb": "No thumbnail",

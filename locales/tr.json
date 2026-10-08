@@ -21,6 +21,7 @@
     "channelOnly": "bu kanal",
     "unread": "Yeni videolar",
     "remove": "Kanalı kaldır",
+    "confirmRemove": "Emin misin?",
     "openVideo": "Videoyu aç",
     "openChannel": "Kanalı aç",
     "noThumb": "Küçük resim yok",
