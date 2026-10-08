@@ -829,12 +829,20 @@ button.btn.secondary:hover {
 }
 
 .candidate-add {
-    width: auto;
     flex: 0 0 auto;
     align-self: center;
     white-space: nowrap;
     padding: 5px 12px;
     font-size: var(--fs-xs);
+}
+
+button.btn.candidate-add {
+    width: auto;
+}
+
+.candidate-text .channel-name:hover {
+    color: inherit;
+    text-decoration: none;
 }
 
 .check-row {
