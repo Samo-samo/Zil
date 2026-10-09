@@ -20,6 +20,7 @@ import {
   scopeIncludes,
   scopeFromBoxes,
   scopeAllowsLive,
+  compileRulePattern,
   classifyVideo,
   classifyForChannel,
   matchRuleDetail,
@@ -223,6 +224,24 @@ describe('content scope', () => {
     assert.ok(!scopeIncludes('videos-shorts', 'live'));
     assert.ok(scopeIncludes('all', 'shorts'));
     assert.ok(!scopeIncludes('default', 'videos'));
+  });
+});
+
+describe('rule wildcards', () => {
+  it('treats * as match-anything and keeps | alternation', () => {
+    assert.equal(classifyVideo([{ id: '1', pattern: '*', field: 'title', action: 'block', enabled: true }], 'Anything at all', 'Ch'), 'block');
+    assert.equal(classifyVideo([{ id: '1', pattern: 'EKİP', field: 'title', action: 'notify', enabled: true }], 'ekip videosu', 'Ch'), 'notify');
+    assert.equal(classifyVideo([{ id: '1', pattern: 'shorts|trailer', field: 'title', action: 'block', enabled: true }], 'New trailer', 'Ch'), 'block');
+  });
+
+  it('matches special chars literally', () => {
+    const r = [{ id: '1', pattern: 'C++ (part 1)', field: 'title', action: 'block', enabled: true }];
+    assert.equal(classifyVideo(r, 'Learn C++ (part 1) today', 'Ch'), 'block');
+    assert.equal(classifyVideo(r, 'Learn CXX part 1 today', 'Ch'), 'notify');
+  });
+
+  it('rejects empty patterns', () => {
+    assert.throws(() => compileRulePattern(''), /empty-pattern/);
   });
 });
 

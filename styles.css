@@ -1179,6 +1179,11 @@ button.btn.candidate-add {
     color: var(--text-muted);
 }
 
+.version-line {
+    margin: 14px 0 0;
+    text-align: center;
+}
+
 .btn-block {
     width: 100%;
 }

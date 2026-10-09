@@ -1,5 +1,5 @@
 import { lang, getLang } from './modules/localizator.js';
-import { resolveChannelId, resolveChannelCandidates, fetchChannelFeed, normalizeChannels, isShorts, fetchChannelAvatar, scopeOf, scopePool, scopeIncludes, scopeFromBoxes, CH_SCOPE_ORDER, classifyForChannel, matchRuleDetail } from './modules/parser.js';
+import { resolveChannelId, resolveChannelCandidates, fetchChannelFeed, normalizeChannels, isShorts, fetchChannelAvatar, scopeOf, scopePool, scopeIncludes, scopeFromBoxes, CH_SCOPE_ORDER, classifyForChannel, matchRuleDetail, compileRulePattern } from './modules/parser.js';
 
 const DEFAULT_SETTINGS = { checkIntervalMin: 15, notifyMode: 'all', skipShorts: false, quiet: { enabled: false, start: 23, end: 7 }, liveMode: 'auto', liveIntervalMin: 30, paused: false };
 const REFRESH_TIMEOUT_MS = 25000;
@@ -107,6 +107,12 @@ function fillHourOptions(select) {
 
 if (quietStartSelect && !quietStartSelect.options.length) fillHourOptions(quietStartSelect);
 if (quietEndSelect && !quietEndSelect.options.length) fillHourOptions(quietEndSelect);
+
+try {
+    document.getElementById('appVersion').textContent = `Zil v${chrome.runtime.getManifest().version}`;
+} catch {
+    // Non-extension context (should not happen in the popup).
+}
 
 async function loadSettings() {
     const { settings = {} } = await chrome.storage.local.get(['settings']);
@@ -274,8 +280,7 @@ function enterRuleEdit(row, r, { onSave, rerender }) {
     save.addEventListener('click', async () => {
         const pattern = input.value.trim();
         try {
-            if (!pattern) throw new Error('empty');
-            new RegExp(pattern, 'i');
+            compileRulePattern(pattern);
         } catch {
             input.setAttribute('aria-invalid', 'true');
             input.focus();
@@ -350,7 +355,7 @@ document.getElementById('ruleAddBtn').addEventListener('click', async () => {
     const pattern = input ? input.value.trim() : '';
     if (!pattern) return;
     try {
-        new RegExp(pattern, 'i');
+        compileRulePattern(pattern);
     } catch {
         showBackupStatus('settings.ruleError', 'Invalid pattern.', true);
         return;
@@ -1181,7 +1186,7 @@ async function openChannelModal(channelId) {
         const pattern = mRuleInput.value.trim();
         if (!pattern) return;
         try {
-            new RegExp(pattern, 'i');
+            compileRulePattern(pattern);
         } catch {
             mRuleInput.title = t('settings.ruleError', 'Invalid pattern.');
             mRuleInput.focus();

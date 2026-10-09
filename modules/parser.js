@@ -307,6 +307,19 @@ export async function verifyLiveVideo(videoId, fetchFn = fetch) {
 // First enabled match wins; anything invalid is skipped.
 // Channel rules are evaluated before global ones (channel wins ties).
 // 'block' still advances the baseline (otherwise it would re-fire every check).
+// Rule patterns are regex, with one convenience: a bare * acts as a
+// wildcard (matches anything), so a lone * is a valid catch-all rule.
+// Everything else regex-special is matched literally unless the author
+// writes real regex. Throws on empty/invalid patterns.
+export function compileRulePattern(pattern) {
+  if (typeof pattern !== 'string' || !pattern) throw new Error('empty-pattern');
+  const src = pattern.replace(/[.+?^${}()[\]\\]/g, '\\$&').replace(/\*/g, '.*');
+  return new RegExp(src, 'i');
+}
+//   { id, pattern, field: 'title'|'channel'|'both', action: 'block'|'notify'|'important', enabled }
+// First enabled match wins; anything invalid is skipped.
+// Channel rules are evaluated before global ones (channel wins ties).
+// 'block' still advances the baseline (otherwise it would re-fire every check).
 function matchRules(rules, title, channel) {
   if (!Array.isArray(rules)) return null;
   for (const r of rules) {
@@ -315,7 +328,7 @@ function matchRules(rules, title, channel) {
     if (typeof r.pattern !== 'string' || !r.pattern) continue;
     let re;
     try {
-      re = new RegExp(r.pattern, 'i');
+      re = compileRulePattern(r.pattern);
     } catch {
       continue;
     }
