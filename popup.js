@@ -377,6 +377,75 @@ document.getElementById('ruleAddBtn').addEventListener('click', async () => {
     await renderRules();
 });
 
+function sanitizeImportedRules(data) {
+    const list = Array.isArray(data) ? data : data && data.rules;
+    if (!Array.isArray(list)) throw new Error('bad-rules');
+    const out = [];
+    const seenIds = new Set();
+    for (const r of list) {
+        if (!r || typeof r.pattern !== 'string' || !r.pattern.trim()) continue;
+        try {
+            compileRulePattern(r.pattern.trim());
+        } catch {
+            continue;
+        }
+        let id = typeof r.id === 'string' && r.id && !seenIds.has(r.id)
+            ? r.id
+            : 'r' + Date.now().toString(36) + out.length;
+        seenIds.add(id);
+        out.push({
+            id,
+            pattern: r.pattern.trim(),
+            field: r.field === 'channel' || r.field === 'both' ? r.field : 'title',
+            action: r.action === 'block' || r.action === 'important' ? r.action : 'notify',
+            enabled: r.enabled !== false,
+        });
+    }
+    if (!out.length) throw new Error('bad-rules');
+    return out;
+}
+
+document.getElementById('ruleExportBtn').addEventListener('click', async () => {
+    const { settings = {} } = await chrome.storage.local.get(['settings']);
+    const rules = Array.isArray(settings.rules) ? settings.rules : [];
+    const blob = new Blob([JSON.stringify({ app: 'zil-rules', version: 1, rules }, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `zil-rules-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+});
+
+document.getElementById('ruleImportBtn').addEventListener('click', () => {
+    document.getElementById('ruleImportFile').click();
+});
+
+document.getElementById('ruleImportFile').addEventListener('change', async (event) => {
+    const file = event.target.files && event.target.files[0];
+    event.target.value = '';
+    if (!file) return;
+    try {
+        const incoming = sanitizeImportedRules(JSON.parse(await file.text()));
+        const cur = await chrome.storage.local.get(['settings']);
+        const settings = cur.settings || {};
+        const existing = Array.isArray(settings.rules) ? [...settings.rules] : [];
+        const sig = (r) => JSON.stringify([r.pattern, r.field, r.action]);
+        const seen = new Set(existing.map(sig));
+        for (const r of incoming) {
+            if (seen.has(sig(r))) continue;
+            if (existing.some((x) => x && x.id === r.id)) r.id = 'r' + Date.now().toString(36) + existing.length;
+            seen.add(sig(r));
+            existing.push(r);
+        }
+        await chrome.storage.local.set({ settings: { ...settings, rules: existing } });
+        await renderRules();
+        showBackupStatus('settings.ruleImportDone', 'Rules imported.');
+    } catch {
+        showBackupStatus('settings.ruleImportError', 'Invalid rules file.', true);
+    }
+});
+
 // Self-test: run all rules (channel-first, then global) against stored video
 // titles so regexes can be verified with real data before relying on them.
 document.getElementById('ruleTestBtn').addEventListener('click', async () => {
@@ -1315,9 +1384,11 @@ async function setView(view) {
 
 document.getElementById('viewVideosBtn').addEventListener('click', () => setView('videos'));
 document.getElementById('viewChannelsBtn').addEventListener('click', () => setView('channels'));
-document.getElementById('filterImportantBtn').addEventListener('click', (e) => {
+document.getElementById('filterImportantBtn').addEventListener('click', async (e) => {
     importantOnly = !importantOnly;
     e.currentTarget.classList.toggle('is-active', importantOnly);
+    const { ui = {} } = await chrome.storage.local.get(['ui']);
+    await chrome.storage.local.set({ ui: { ...ui, importantOnly } });
     renderHome();
 });
 document.getElementById('liveLeft').addEventListener('click', () => {
@@ -1786,6 +1857,12 @@ chrome.storage.onChanged.addListener((changes, area) => {
         renderHome();
     }
 });
+
+{
+    const { ui = {} } = await chrome.storage.local.get(['ui']);
+    importantOnly = ui.importantOnly === true;
+    document.getElementById('filterImportantBtn').classList.toggle('is-active', importantOnly);
+}
 
 await renderHome();
 

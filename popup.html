@@ -212,6 +212,11 @@
                     <div class="setting-row">
                         <button id="ruleTestBtn" class="btn secondary btn-block" data-i18n="settings.ruleTest">Test rules</button>
                     </div>
+                    <div class="flex setting-row btn-row">
+                        <button id="ruleExportBtn" class="btn secondary grow" data-i18n="settings.ruleExport">Export rules</button>
+                        <button id="ruleImportBtn" class="btn secondary grow" data-i18n="settings.ruleImport">Import rules</button>
+                        <input type="file" id="ruleImportFile" accept="application/json,.json" hidden>
+                    </div>
                     <p class="hint" data-i18n="settings.ruleOrderHint">First match wins — use the arrows to reorder.</p>
                     <p class="hint" data-i18n="settings.ruleMatchHint">Patterns match anywhere inside the text — no need for .* wrappers.</p>
             </div>
