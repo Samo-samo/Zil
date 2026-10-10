@@ -1832,7 +1832,13 @@ async function renderChannelList() {
             if (ch.lastCheck) {
                 let checkText = timeAgo(ch.lastCheck);
                 if (ch.lastOk === false && ch.lastError) checkText += ` (${ch.lastError})`;
-                detail.appendChild(detailRow(t('home.lastVideoCheck', 'Last video check'), checkText || '—'));
+                let checkStamp = '';
+                try {
+                    checkStamp = new Date(ch.lastCheck).toLocaleString();
+                } catch {
+                    checkStamp = ch.lastCheck;
+                }
+                detail.appendChild(detailRow(t('home.lastVideoCheck', 'Last video check'), checkText || '—', { title: checkStamp }));
             }
 
             const liveRow = document.createElement('div');
