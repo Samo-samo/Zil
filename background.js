@@ -3,7 +3,7 @@ import { fetchChannelFeed, normalizeChannels, scopeOf, scopePool, scopeAllowsLiv
 const ALARM_NAME = 'checkYouTubeRSS';
 const VERSION_ALARM_NAME = 'zilVersionCheck';
 const VERSION_CHECK_INTERVAL_MIN = 24 * 60;
-const RELEASES_API = 'https://api.github.com/Samo-samo/Zil/releases/latest';
+const RELEASES_API = 'https://api.github.com/repos/Samo-samo/Zil/releases/latest';
 const BADGE_COLOR = '#dc2626';
 const NOTIF_ICON = 'icons/bell-notif-128.png';
 
