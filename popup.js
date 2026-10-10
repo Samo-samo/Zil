@@ -1042,12 +1042,22 @@ function selectRow(id, labelText, options, current, onPick) {
 
 function closeChannelModal() {
     document.getElementById('modalOverlay').hidden = true;
+    openModalChannelId = null;
+}
+
+let openModalChannelId = null;
+
+async function refreshOpenModal() {
+    if (openModalChannelId && !document.getElementById('modalOverlay').hidden) {
+        await openChannelModal(openModalChannelId);
+    }
 }
 
 async function openChannelModal(channelId) {
     const channels = await getChannels();
     const ch = channels.find((c) => c.id === channelId);
     if (!ch) return;
+    openModalChannelId = channelId;
     document.getElementById('modalTitle').textContent = ch.name || ch.id;
     document.getElementById('modalClose').title = t('home.close', 'Close');
     const body = document.getElementById('modalBody');
@@ -1775,8 +1785,13 @@ async function renderChannelList() {
                 liveV.appendChild(pill);
             } else if (ch.liveCheckedAt) {
                 liveV.textContent = `${t('home.liveOff', 'Not live')} (${ch.liveVia || '?'})`;
+                try {
+                    liveV.title = new Date(ch.liveCheckedAt).toLocaleString();
+                } catch {
+                    liveV.title = ch.liveCheckedAt;
+                }
             } else {
-                liveV.textContent = t('home.liveUnknown', 'Unknown');
+                liveV.textContent = t('home.liveNotChecked', 'Not checked yet');
             }
             liveRow.appendChild(liveK);
             liveRow.appendChild(liveV);
@@ -1804,14 +1819,18 @@ async function renderChannelList() {
             liveBtn.textContent = t('home.checkLive', 'Check live');
             liveBtn.addEventListener('click', async (e) => {
                 const btn = e.currentTarget;
+                const originalText = btn.textContent;
                 btn.disabled = true;
+                btn.textContent = t('home.checking', 'Checking…');
                 try {
                     await chrome.runtime.sendMessage({ type: 'zil-check-live', channelId: ch.id });
                 } catch {
                     // SW wakes on storage change anyway.
                 } finally {
                     btn.disabled = false;
+                    btn.textContent = originalText;
                     await renderHome();
+                    await refreshOpenModal();
                 }
             });
             }

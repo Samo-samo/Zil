@@ -29,6 +29,8 @@
     "live": "LIVE",
     "liveOff": "Not live",
     "liveUnknown": "Unknown",
+    "liveNotChecked": "Not checked yet",
+    "checking": "Checking…",
     "liveCheck": "Live check",
     "checkLive": "Check live",
     "chNotify": "Channel notifications",

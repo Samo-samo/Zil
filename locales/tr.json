@@ -29,6 +29,8 @@
     "live": "CANLI",
     "liveOff": "Canlı değil",
     "liveUnknown": "Bilinmiyor",
+    "liveNotChecked": "Henüz denetlenmedi",
+    "checking": "Denetleniyor…",
     "liveCheck": "Canlı kontrolü",
     "checkLive": "Canlıyı denetle",
     "chNotify": "Kanal bildirimleri",
