@@ -818,7 +818,7 @@ document.getElementById('refreshBtn').addEventListener('click', async (event) =>
 
 async function openVideo(channelId, videoId, published, url, active = true) {
     if (!url) return;
-    await chrome.tabs.create({ url, active });
+    await openTabNextToCurrent(url, active);
     // Per-video read state: only the opened video is marked, the rest of the
     // channel stays unread.
     const channels = await getChannels();
@@ -902,7 +902,23 @@ function toggleCardMenu(card, channelId) {
 }
 
 async function openChannel(channelId, active = true) {
-    await chrome.tabs.create({ url: `https://www.youtube.com/channel/${channelId}`, active });
+    await openTabNextToCurrent(`https://www.youtube.com/channel/${channelId}`, active);
+}
+
+// Opens next to the current tab (like a normal middle-click): each new tab
+// lands right after the active one, so consecutive opens stack in order
+// instead of piling up at the far end.
+async function openTabNextToCurrent(url, active) {
+    try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tab && Number.isInteger(tab.index)) {
+            await chrome.tabs.create({ url, active, index: tab.index + 1 });
+            return;
+        }
+    } catch {
+        // Fall through to the default (append at end).
+    }
+    await chrome.tabs.create({ url, active });
 }
 
 async function markSingleRead(channelId, videoId) {
