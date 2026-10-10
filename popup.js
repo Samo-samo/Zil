@@ -1003,7 +1003,7 @@ function copyText(text, btn, doneLabel) {
 // One-click diagnostic snapshot for bug reports: channel state + relevant
 // settings + app version, as copyable JSON.
 async function buildDebugReport(channelId) {
-    const { channels = [], settings = {} } = await chrome.storage.local.get(['channels', 'settings']);
+    const { channels = [], settings = {}, meta = {} } = await chrome.storage.local.get(['channels', 'settings', 'meta']);
     const ch = (Array.isArray(channels) ? channels : []).find((c) => c && c.id === channelId) || {};
     let version = '';
     try {
@@ -1011,9 +1011,28 @@ async function buildDebugReport(channelId) {
     } catch {
         version = '';
     }
+    let swAlive = false;
+    let swTime = null;
+    try {
+        const pong = await Promise.race([
+            chrome.runtime.sendMessage({ type: 'zil-ping' }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('ping-timeout')), 5000)),
+        ]);
+        swAlive = !!(pong && pong.ok);
+        swTime = (pong && pong.time) || null;
+    } catch {
+        swAlive = false;
+    }
     return JSON.stringify({
         app: `Zil v${version}`,
         at: new Date().toISOString(),
+        worker: {
+            alive: swAlive,
+            time: swTime,
+            lastCheckAttempt: meta.lastCheckAttempt || null,
+            lastCheckOk: meta.lastCheckOk || null,
+            lastCheckError: meta.lastCheckError || null,
+        },
         channel: {
             id: ch.id || channelId,
             name: ch.name || '',
@@ -1835,12 +1854,9 @@ async function renderChannelList() {
                 pill.className = 'live-mini';
                 pill.textContent = t('home.live', 'LIVE');
                 liveV.appendChild(pill);
-                if (liveStamp) {
-                    liveV.appendChild(document.createTextNode(` · ${liveStamp}`));
-                    liveV.title = liveStamp;
-                }
+                if (liveStamp) liveV.title = liveStamp;
             } else if (ch.liveCheckedAt) {
-                liveV.textContent = `${t('home.liveOff', 'Not live')} (${ch.liveVia || '?'})${liveStamp ? ` · ${liveStamp}` : liveTime ? ` · ${liveTime}` : ''}`;
+                liveV.textContent = `${t('home.liveOff', 'Not live')} (${ch.liveVia || '?'})`;
                 liveV.title = [liveStamp, ch.liveDebug ? `debug=${ch.liveDebug}` : '']
                     .filter(Boolean).join('\n');
             } else {

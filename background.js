@@ -147,6 +147,10 @@ async function markVideoRead(videoId) {
 // with { ok, channelId, isLive, liveVideoId, liveVia, liveDebug,
 // liveCheckedAt, notified }.
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg && msg.type === 'zil-ping') {
+    sendResponse({ ok: true, time: new Date().toISOString(), version: chrome.runtime.getManifest().version });
+    return true;
+  }
   if (msg && msg.type === 'zil-check-now') {
     checkNewVideos()
       .then((result) => sendResponse(result))
@@ -390,6 +394,28 @@ async function probeOneChannelLive(channelId) {
 }
 
 async function checkNewVideos() {
+  const startedAt = new Date().toISOString();
+  try {
+    await recordMeta({ lastCheckAttempt: startedAt });
+    return await runChecks();
+  } catch (err) {
+    const error = String((err && err.message) || err);
+    console.warn('Zil: check run failed', err);
+    await recordMeta({ lastCheckError: `${startedAt} :: ${error}` });
+    return { ok: false, error };
+  }
+}
+
+async function recordMeta(patch) {
+  try {
+    const { meta = {} } = await chrome.storage.local.get(['meta']);
+    await chrome.storage.local.set({ meta: { ...meta, ...patch } });
+  } catch {
+    // Meta is diagnostics-only; never break a check over it.
+  }
+}
+
+async function runChecks() {
   const { notifyMode, skipShorts, checkIntervalMin, quiet, liveMode, liveIntervalMin, rules, importantBypassQuiet, paused } = await getSettings();
   const quietActive = isQuietNow({ quiet });
   const live = { mode: liveMode, intervalMin: liveIntervalMin };
@@ -398,6 +424,7 @@ async function checkNewVideos() {
     // Master kill-switch: no checks, no notifications; badge hidden but
     // unread counts are kept so unpausing restores the state.
     await chrome.action.setBadgeText({ text: '' });
+    await recordMeta({ lastCheckOk: new Date().toISOString(), lastCheckError: null });
     return { ok: true, checked: 0, newVideos: 0, skipped: 0, paused: true };
   }
   if (!channels.length) {
@@ -546,5 +573,6 @@ async function checkNewVideos() {
   await chrome.storage.local.set({ channels: updated });
   await updateBadge();
   await maybeAutoBackup(updated);
+  await recordMeta({ lastCheckOk: new Date().toISOString(), lastCheckError: null });
   return { ok: true, checked: channels.length - skipped, newVideos, skipped };
 }

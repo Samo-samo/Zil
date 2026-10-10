@@ -1397,6 +1397,11 @@ button.btn.candidate-add {
     transform: none;
 }
 
+.mini-btn:disabled {
+    opacity: 0.55;
+    cursor: wait;
+}
+
 /* --- Modal add-form: input full-width, controls on second line --- */
 .m-add {
     display: flex;
