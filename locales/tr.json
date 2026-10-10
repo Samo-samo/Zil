@@ -71,7 +71,8 @@
       "notifications": "Bildirimler",
       "content": "İçerik",
       "rules": "Başlık Kuralları",
-      "backup": "Yedek"
+      "backup": "Yedek",
+      "about": "Hakkında"
     },
     "contentHint": "Video bazında ince ayar için aşağıdaki Başlık Kuralları'nı kullanın.",
     "darkMode": "Karanlık Mod",
@@ -115,6 +116,10 @@
     "scopeVideosShorts": "Video + Shorts",
     "scopeVideosLive": "Video + canlı",
     "scopeShortsLive": "Shorts + canlı",
+    "checkUpdates": "Güncellemeleri denetle",
+    "updateAvailable": "Yeni sürüm mevcut",
+    "upToDate": "Güncel",
+    "updateFailed": "Güncelleme denetimi başarısız.",
     "testNotif": "Test bildirimi gönder",
     "testTitle": "Zil",
     "testMsg": "Bildirimler çalışıyor.",

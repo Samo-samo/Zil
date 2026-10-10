@@ -71,7 +71,8 @@
       "notifications": "Notifications",
       "content": "Content",
       "rules": "Title Rules",
-      "backup": "Backup"
+      "backup": "Backup",
+      "about": "About"
     },
     "contentHint": "Fine-tune per video with Title Rules below.",
     "darkMode": "Dark Mode",
@@ -115,6 +116,10 @@
     "scopeVideosShorts": "Videos + Shorts",
     "scopeVideosLive": "Videos + live",
     "scopeShortsLive": "Shorts + live",
+    "checkUpdates": "Check for updates",
+    "updateAvailable": "New version available",
+    "upToDate": "Up to date",
+    "updateFailed": "Update check failed.",
     "testNotif": "Send test notification",
     "testTitle": "Zil",
     "testMsg": "Notifications are working.",

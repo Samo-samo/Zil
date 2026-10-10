@@ -1,5 +1,5 @@
 import { lang, getLang } from './modules/localizator.js';
-import { resolveChannelId, resolveChannelCandidates, fetchChannelFeed, normalizeChannels, isShorts, fetchChannelAvatar, scopeOf, scopePool, scopeIncludes, scopeFromBoxes, CH_SCOPE_ORDER, classifyForChannel, matchRuleDetail, compileRulePattern } from './modules/parser.js';
+import { resolveChannelId, resolveChannelCandidates, fetchChannelFeed, normalizeChannels, isShorts, fetchChannelAvatar, scopeOf, scopePool, scopeIncludes, scopeFromBoxes, CH_SCOPE_ORDER, classifyForChannel, matchRuleDetail, compileRulePattern, compareVersions } from './modules/parser.js';
 
 const DEFAULT_SETTINGS = { checkIntervalMin: 15, notifyMode: 'all', skipShorts: false, quiet: { enabled: false, start: 23, end: 7 }, liveMode: 'auto', liveIntervalMin: 30, paused: false };
 const REFRESH_TIMEOUT_MS = 25000;
@@ -139,6 +139,7 @@ async function loadSettings() {
     if (pauseAllToggle) pauseAllToggle.checked = merged.paused === true;
     updateLiveIntervalState();
     await renderRules();
+    await refreshUpdateStatus();
 }
 
 function updateLiveIntervalState() {
@@ -494,6 +495,86 @@ function showBackupStatus(key, fallback, isError = false) {
     el.classList.toggle('error-line', isError);
     el.hidden = false;
 }
+
+function showUpdateStatus(text, url) {
+    const el = document.getElementById('updateStatus');
+    el.textContent = '';
+    if (url) {
+        const link = document.createElement('button');
+        link.className = 'linklike';
+        link.textContent = text;
+        link.addEventListener('click', () => chrome.tabs.create({ url }));
+        el.appendChild(link);
+    } else {
+        el.textContent = text;
+    }
+    el.hidden = false;
+}
+
+// Persistent update banner: if a newer release is already known, the About
+// group says so on every open — the OS bubble alone is easy to miss.
+async function refreshUpdateStatus() {
+    const el = document.getElementById('updateStatus');
+    if (!el) return;
+    let current = '';
+    try {
+        current = chrome.runtime.getManifest().version;
+    } catch {
+        current = '';
+    }
+    const { lastNotifiedVersion = '', pendingUpdateUrl = '' } = await chrome.storage.local.get(['lastNotifiedVersion', 'pendingUpdateUrl']);
+    if (lastNotifiedVersion && current) {
+        try {
+            if (compareVersions(lastNotifiedVersion, current) > 0) {
+                showUpdateStatus(
+                    `${t('settings.updateAvailable', 'New version available')}: ${lastNotifiedVersion}`,
+                    pendingUpdateUrl || `https://github.com/Samo-samo/Zil/releases/tag/${lastNotifiedVersion}`
+                );
+                return;
+            }
+        } catch {
+            // Fall through and hide.
+        }
+    }
+    el.hidden = true;
+    el.textContent = '';
+}
+
+document.getElementById('updateCheckBtn').addEventListener('click', async (event) => {
+    const btn = event.currentTarget;
+    btn.disabled = true;
+    const originalText = btn.textContent;
+    btn.textContent = t('home.checking', 'Checking…');
+    try {
+        const timeout = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('update-timeout')), 25000)
+        );
+        const result = await Promise.race([
+            chrome.runtime.sendMessage({ type: 'zil-check-updates' }),
+            timeout,
+        ]);
+        if (result && result.update) {
+            await refreshUpdateStatus();
+        } else if (result && result.ok) {
+            let current = '';
+            try {
+                current = chrome.runtime.getManifest().version;
+            } catch {
+                current = '';
+            }
+            showUpdateStatus(`${t('settings.upToDate', 'Up to date')} (v${current})`);
+        } else {
+            showUpdateStatus(t('settings.updateFailed', 'Update check failed.'), null);
+            document.getElementById('updateStatus').classList.add('error-line');
+        }
+    } catch {
+        showUpdateStatus(t('settings.updateFailed', 'Update check failed.'), null);
+        document.getElementById('updateStatus').classList.add('error-line');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+    }
+});
 
 document.getElementById('exportBtn').addEventListener('click', async () => {
     const { channels = [], settings = {}, theme = 'light', ui = {}, autoBackups = [] } = await chrome.storage.local.get(['channels', 'settings', 'theme', 'ui', 'autoBackups']);

@@ -163,6 +163,12 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       .catch((err) => sendResponse({ ok: false, error: String((err && err.message) || err) }));
     return true;
   }
+  if (msg && msg.type === 'zil-check-updates') {
+    checkForUpdates()
+      .then((result) => sendResponse(result))
+      .catch((err) => sendResponse({ ok: false, error: String((err && err.message) || err) }));
+    return true;
+  }
   return false;
 });
 
