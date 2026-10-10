@@ -515,8 +515,6 @@ async function runChecks() {
         if (verdict === 'block') {
           console.log(`Zil: blocked by rule: ${latest.title}`);
         } else {
-          console.log(`Zil: blocked by rule: ${latest.title}`);
-        } else {
           // Important videos bypass quiet hours (never a global/per-channel 'off').
           const quietForThis = quietActive && !(verdict === 'important' && importantBypassQuiet && notifyMode === 'all');
           const eff = effectiveMode(ch, notifyMode, quietForThis);

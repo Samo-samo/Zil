@@ -1919,8 +1919,9 @@ async function renderChannelList() {
             debugBtn.className = 'mini-btn';
             debugBtn.textContent = t('home.debugReport', 'Copy diagnostic report');
             debugBtn.addEventListener('click', async (e) => {
+                const btn = e.currentTarget;
                 const report = await buildDebugReport(ch.id);
-                copyText(report, e.currentTarget, t('home.copied', 'Copied'));
+                copyText(report, btn, t('home.copied', 'Copied'));
             });
             actions.appendChild(debugBtn);
             detail.appendChild(actions);
