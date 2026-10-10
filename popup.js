@@ -905,14 +905,29 @@ async function openChannel(channelId, active = true) {
     await openTabNextToCurrent(`https://www.youtube.com/channel/${channelId}`, active);
 }
 
-// Opens next to the current tab (like a normal middle-click): each new tab
-// lands right after the active one, so consecutive opens stack in order
-// instead of piling up at the far end.
+// Opens next to the current tab (like a normal middle-click), and chains:
+// consecutive opens land after the previously opened tab, so A-then-B reads
+// current, A, B instead of piling in reverse.
+let lastOpenedTabId = null;
+
 async function openTabNextToCurrent(url, active) {
     try {
+        if (lastOpenedTabId !== null) {
+            try {
+                const prev = await chrome.tabs.get(lastOpenedTabId);
+                if (prev && Number.isInteger(prev.index)) {
+                    const created = await chrome.tabs.create({ url, active, index: prev.index + 1 });
+                    if (created && created.id !== undefined) lastOpenedTabId = created.id;
+                    return;
+                }
+            } catch {
+                lastOpenedTabId = null;
+            }
+        }
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
         if (tab && Number.isInteger(tab.index)) {
-            await chrome.tabs.create({ url, active, index: tab.index + 1 });
+            const created = await chrome.tabs.create({ url, active, index: tab.index + 1 });
+            if (created && created.id !== undefined) lastOpenedTabId = created.id;
             return;
         }
     } catch {
