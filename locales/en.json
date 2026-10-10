@@ -18,6 +18,8 @@
     "ruleDown": "Move down",
     "important": "Important",
     "importantOnly": "Show only important",
+    "onlyImportant": "Important only",
+    "onlyUnread": "Unread only",
     "loadMore": "Show more",
     "channelOnly": "this channel",
     "unread": "New videos",

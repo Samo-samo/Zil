@@ -8,6 +8,7 @@ let selectedLang = '';
 let uiStrings = {};
 let feedLimit = 25;
 let importantOnly = false;
+let unreadOnly = false;
 // Cached global live mode ('off' hides all live UI). Refreshed in renderHome.
 let liveModeCache = 'auto';
 
@@ -1597,11 +1598,20 @@ async function setView(view) {
 
 document.getElementById('viewVideosBtn').addEventListener('click', () => setView('videos'));
 document.getElementById('viewChannelsBtn').addEventListener('click', () => setView('channels'));
-document.getElementById('filterImportantBtn').addEventListener('click', async (e) => {
-    importantOnly = !importantOnly;
-    e.currentTarget.classList.toggle('is-active', importantOnly);
+async function persistVideoFilters() {
     const { ui = {} } = await chrome.storage.local.get(['ui']);
-    await chrome.storage.local.set({ ui: { ...ui, importantOnly } });
+    await chrome.storage.local.set({ ui: { ...ui, importantOnly, unreadOnly } });
+}
+
+document.getElementById('filterImportant').addEventListener('change', async (e) => {
+    importantOnly = e.currentTarget.checked;
+    await persistVideoFilters();
+    renderHome();
+});
+
+document.getElementById('filterUnread').addEventListener('change', async (e) => {
+    unreadOnly = e.currentTarget.checked;
+    await persistVideoFilters();
     renderHome();
 });
 document.getElementById('liveLeft').addEventListener('click', () => {
@@ -1666,6 +1676,7 @@ async function renderHome() {
     await renderLiveStrip();
     await refreshUpdateDot();
     document.getElementById('channelSearchWrap').style.display = view === 'channels' ? 'block' : 'none';
+    document.getElementById('videoFilterRow').style.display = view === 'videos' ? 'flex' : 'none';
 }
 
 async function renderVideoList() {
@@ -1690,7 +1701,8 @@ async function renderVideoList() {
         }
     }
     items.sort((a, b) => (b.published || '').localeCompare(a.published || ''));
-    const feed = importantOnly ? items.filter((i) => i.important) : items;
+    let feed = importantOnly ? items.filter((i) => i.important) : items;
+    if (unreadOnly) feed = feed.filter((i) => isNewVideo(i, i));
     const shown = feed.slice(0, feedLimit);
     list.textContent = '';
     empty.style.display = shown.length ? 'none' : 'block';
@@ -2115,7 +2127,9 @@ chrome.storage.onChanged.addListener((changes, area) => {
 {
     const { ui = {} } = await chrome.storage.local.get(['ui']);
     importantOnly = ui.importantOnly === true;
-    document.getElementById('filterImportantBtn').classList.toggle('is-active', importantOnly);
+    unreadOnly = ui.unreadOnly === true;
+    document.getElementById('filterImportant').checked = importantOnly;
+    document.getElementById('filterUnread').checked = unreadOnly;
 }
 
 await renderHome();

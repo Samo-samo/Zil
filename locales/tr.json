@@ -18,6 +18,8 @@
     "ruleDown": "Aşağı taşı",
     "important": "Önemli",
     "importantOnly": "Sadece önemlileri göster",
+    "onlyImportant": "Sadece önemliler",
+    "onlyUnread": "Sadece okunmamışlar",
     "loadMore": "Daha fazla göster",
     "channelOnly": "bu kanal",
     "unread": "Yeni videolar",

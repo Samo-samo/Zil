@@ -387,6 +387,16 @@ details .content {
     margin-top: 12px;
 }
 
+.filter-row {
+    display: flex;
+    gap: 16px;
+    margin-top: 12px;
+}
+
+.filter-row .check-row {
+    padding: 2px 0;
+}
+
 /* --- Live strip: single scrollable row, arrows instead of scrollbar --- */
 .live-strip-wrap {
     display: flex;
