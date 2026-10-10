@@ -14,6 +14,7 @@ import {
   fetchLiveVideoId,
   verifyLiveVideo,
   findLiveTile,
+  compareVersions,
   isQuietNow,
   scopeOf,
   scopePool,
@@ -180,6 +181,17 @@ describe('live detection', () => {
     assert.equal(await verifyLiveVideo('V', mock('liveStreamability')), 'live');
     assert.equal(await verifyLiveVideo('V', mock('plain')), 'unknown');
     assert.equal(await verifyLiveVideo('V', mock('', 404)), 'unknown');
+  });
+});
+
+describe('version compare', () => {
+  it('orders semver with v prefix tolerated', () => {
+    assert.equal(compareVersions('v1.4.0', '1.3.1'), 1);
+    assert.equal(compareVersions('1.3.1', 'v1.4.0'), -1);
+    assert.equal(compareVersions('1.3.1', '1.3.1'), 0);
+    assert.equal(compareVersions('1.3', '1.3.0'), 0);
+    assert.equal(compareVersions('1.10.0', '1.9.0'), 1);
+    assert.equal(compareVersions('', '1.0.0'), -1);
   });
 });
 

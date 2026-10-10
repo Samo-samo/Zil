@@ -289,6 +289,21 @@ export function findLiveTile(root) {
 // upcomingEventData / "isUpcoming", live ones carry liveStreamability.
 // Returns 'live' | 'upcoming' | 'unknown' (unknown = verify on next round,
 // never block a possible live on a failed check).
+//
+// Semver compare for the self update check ("v" prefix tolerated).
+// Returns 1 when a is newer than b, -1 when older, 0 when equal.
+export function compareVersions(a, b) {
+  const parts = (v) => String(v || '').replace(/^v/i, '').split('.').map((n) => parseInt(n, 10) || 0);
+  const pa = parts(a);
+  const pb = parts(b);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const x = pa[i] || 0;
+    const y = pb[i] || 0;
+    if (x !== y) return x > y ? 1 : -1;
+  }
+  return 0;
+}
+
 export async function verifyLiveVideo(videoId, fetchFn = fetch) {
   try {
     const res = await timedFetch(`https://www.youtube.com/watch?v=${videoId}`, { headers: { 'Accept-Language': 'en' } }, fetchFn);

@@ -1,6 +1,9 @@
-import { fetchChannelFeed, normalizeChannels, scopeOf, scopePool, scopeAllowsLive, isQuietNow, fetchLiveVideoId, verifyLiveVideo, fetchChannelAvatar, classifyForChannel } from './modules/parser.js';
+import { fetchChannelFeed, normalizeChannels, scopeOf, scopePool, scopeAllowsLive, isQuietNow, fetchLiveVideoId, verifyLiveVideo, fetchChannelAvatar, classifyForChannel, compareVersions } from './modules/parser.js';
 
 const ALARM_NAME = 'checkYouTubeRSS';
+const VERSION_ALARM_NAME = 'zilVersionCheck';
+const VERSION_CHECK_INTERVAL_MIN = 24 * 60;
+const RELEASES_API = 'https://api.github.com/Samo-samo/Zil/releases/latest';
 const BADGE_COLOR = '#dc2626';
 const NOTIF_ICON = 'icons/bell-notif-128.png';
 
@@ -58,6 +61,10 @@ async function ensureAlarm() {
   if (!alarm || Math.round(alarm.periodInMinutes) !== checkIntervalMin) {
     await chrome.alarms.create(ALARM_NAME, { periodInMinutes: checkIntervalMin });
   }
+  const versionAlarm = await chrome.alarms.get(VERSION_ALARM_NAME);
+  if (!versionAlarm) {
+    await chrome.alarms.create(VERSION_ALARM_NAME, { periodInMinutes: VERSION_CHECK_INTERVAL_MIN });
+  }
 }
 
 chrome.runtime.onInstalled.addListener(async () => {
@@ -70,11 +77,14 @@ chrome.runtime.onStartup.addListener(async () => {
   await migrateOnce();
   await ensureAlarm();
   checkNewVideos();
+  checkForUpdates();
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === ALARM_NAME) {
     checkNewVideos();
+  } else if (alarm.name === VERSION_ALARM_NAME) {
+    checkForUpdates();
   }
 });
 
@@ -91,6 +101,13 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 chrome.notifications.onClicked.addListener((notifId) => {
+  if (notifId.startsWith('zil-update-')) {
+    chrome.storage.local.get(['pendingUpdateUrl']).then(({ pendingUpdateUrl }) => {
+      if (pendingUpdateUrl) chrome.tabs.create({ url: pendingUpdateUrl });
+    });
+    chrome.notifications.clear(notifId);
+    return;
+  }
   if (notifId.startsWith('zil-test-')) {
     chrome.notifications.clear(notifId);
     return;
@@ -144,6 +161,43 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
   return false;
 });
+
+// Self update check: MV3 extensions cannot replace their own code, so this
+// only notifies. Compares the latest GitHub release tag against the installed
+// version, once per version. Clicking the bubble opens the release page.
+async function checkForUpdates(fetchFn = fetch) {
+  try {
+    const res = await fetchFn(RELEASES_API, { headers: { Accept: 'application/vnd.github+json' } });
+    if (!res.ok) return { ok: false, error: `http:${res.status}` };
+    const data = await res.json();
+    const tag = data && typeof data.tag_name === 'string' ? data.tag_name : '';
+    if (!tag) return { ok: false, error: 'no-tag' };
+    const current = chrome.runtime.getManifest().version;
+    if (compareVersions(tag, current) <= 0) return { ok: true, update: false };
+    const { lastNotifiedVersion = '' } = await chrome.storage.local.get(['lastNotifiedVersion']);
+    if (lastNotifiedVersion === tag) return { ok: true, update: true, notified: false };
+    await chrome.storage.local.set({
+      lastNotifiedVersion: tag,
+      pendingUpdateUrl: (data && data.html_url) || `https://github.com/Samo-samo/Zil/releases/tag/${tag}`,
+    });
+    let tr = false;
+    try {
+      const { user_selected_lang } = await chrome.storage.local.get(['user_selected_lang']);
+      tr = user_selected_lang === 'tr';
+    } catch {
+      tr = false;
+    }
+    await chrome.notifications.create(`zil-update-${tag}`, {
+      type: 'basic',
+      iconUrl: NOTIF_ICON,
+      title: 'Zil',
+      message: tr ? `Yeni sürüm mevcut: ${tag} — indirmek için tıkla` : `New version available: ${tag} — click to download`,
+    });
+    return { ok: true, update: true, notified: true };
+  } catch (err) {
+    return { ok: false, error: String((err && err.message) || err) };
+  }
+}
 
 const AUTO_BACKUP_MAX = 5;
 const AUTO_BACKUP_INTERVAL_MS = 24 * 3600 * 1000;
