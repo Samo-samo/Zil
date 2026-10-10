@@ -1000,6 +1000,48 @@ function copyText(text, btn, doneLabel) {
     }
 }
 
+// One-click diagnostic snapshot for bug reports: channel state + relevant
+// settings + app version, as copyable JSON.
+async function buildDebugReport(channelId) {
+    const { channels = [], settings = {} } = await chrome.storage.local.get(['channels', 'settings']);
+    const ch = (Array.isArray(channels) ? channels : []).find((c) => c && c.id === channelId) || {};
+    let version = '';
+    try {
+        version = chrome.runtime.getManifest().version;
+    } catch {
+        version = '';
+    }
+    return JSON.stringify({
+        app: `Zil v${version}`,
+        at: new Date().toISOString(),
+        channel: {
+            id: ch.id || channelId,
+            name: ch.name || '',
+            lastCheck: ch.lastCheck || null,
+            lastOk: ch.lastOk !== false,
+            lastError: ch.lastError || null,
+            failCount: ch.failCount || 0,
+            nextRetryAt: ch.nextRetryAt || null,
+            liveCheckedAt: ch.liveCheckedAt || null,
+            liveVia: ch.liveVia || null,
+            liveDebug: ch.liveDebug || '',
+            isLive: !!ch.isLive,
+            liveVideoId: ch.liveVideoId || null,
+            unread: ch.unread || 0,
+            chScope: ch.chScope || 'default',
+            chLive: ch.chLive || 'default',
+            chNotify: ch.chNotify || 'default',
+            paused: !!ch.paused,
+        },
+        settings: {
+            liveMode: settings.liveMode || 'auto',
+            liveIntervalMin: settings.liveIntervalMin || 30,
+            checkIntervalMin: settings.checkIntervalMin || 15,
+            notifyMode: settings.notifyMode || 'all',
+        },
+    }, null, 2);
+}
+
 function detailRow(label, valueText, opts = {}) {
     const row = document.createElement('div');
     row.className = 'kv';
@@ -1768,7 +1810,7 @@ async function renderChannelList() {
             if (ch.lastCheck) {
                 let checkText = timeAgo(ch.lastCheck);
                 if (ch.lastOk === false && ch.lastError) checkText += ` (${ch.lastError})`;
-                detail.appendChild(detailRow(t('home.lastCheck', 'Last check'), checkText || '—'));
+                detail.appendChild(detailRow(t('home.lastVideoCheck', 'Last video check'), checkText || '—'));
             }
 
             const liveRow = document.createElement('div');
@@ -1778,24 +1820,26 @@ async function renderChannelList() {
             liveK.textContent = t('home.liveCheck', 'Live check');
             const liveV = document.createElement('span');
             liveV.className = 'kv-val';
+            const liveTime = ch.liveCheckedAt ? timeAgo(ch.liveCheckedAt) : '';
+            const liveStamp = ch.liveCheckedAt ? ch.liveCheckedAt : '';
             if (ch.isLive && ch.liveVideoId) {
                 const pill = document.createElement('span');
                 pill.className = 'live-mini';
                 pill.textContent = t('home.live', 'LIVE');
                 liveV.appendChild(pill);
-            } else if (ch.liveCheckedAt) {
-                liveV.textContent = `${t('home.liveOff', 'Not live')} (${ch.liveVia || '?'})`;
-                try {
-                    liveV.title = new Date(ch.liveCheckedAt).toLocaleString();
-                } catch {
-                    liveV.title = ch.liveCheckedAt;
+                if (liveTime) {
+                    liveV.appendChild(document.createTextNode(` · ${liveTime}`));
+                    liveV.title = liveStamp;
                 }
+            } else if (ch.liveCheckedAt) {
+                liveV.textContent = `${t('home.liveOff', 'Not live')} (${ch.liveVia || '?'})${liveTime ? ` · ${liveTime}` : ''}`;
+                liveV.title = [liveStamp, ch.liveDebug ? `debug=${ch.liveDebug}` : '']
+                    .filter(Boolean).join('\n');
             } else {
                 liveV.textContent = t('home.liveNotChecked', 'Not checked yet');
             }
             liveRow.appendChild(liveK);
             liveRow.appendChild(liveV);
-            if (ch.liveDebug) liveV.title = ch.liveDebug;
             if (liveModeCache !== 'off') detail.appendChild(liveRow);
 
             const actions = document.createElement('div');
@@ -1847,6 +1891,14 @@ async function renderChannelList() {
             actions.appendChild(custBtn);
             if (liveModeCache !== 'off') actions.appendChild(liveBtn);
             actions.appendChild(delBtn);
+            const debugBtn = document.createElement('button');
+            debugBtn.className = 'mini-btn';
+            debugBtn.textContent = t('home.debugReport', 'Copy diagnostic report');
+            debugBtn.addEventListener('click', async (e) => {
+                const report = await buildDebugReport(ch.id);
+                copyText(report, e.currentTarget, t('home.copied', 'Copied'));
+            });
+            actions.appendChild(debugBtn);
             detail.appendChild(actions);
 
             const recent = Array.isArray(ch.recent) ? ch.recent : [];
