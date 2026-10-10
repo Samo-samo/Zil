@@ -1676,6 +1676,7 @@ async function renderHome() {
     await renderLiveStrip();
     await refreshUpdateDot();
     document.getElementById('channelSearchWrap').style.display = view === 'channels' ? 'block' : 'none';
+    document.getElementById('videoSearchWrap').style.display = view === 'videos' ? 'block' : 'none';
     document.getElementById('videoFilterRow').style.display = view === 'videos' ? 'flex' : 'none';
 }
 
@@ -1703,6 +1704,11 @@ async function renderVideoList() {
     items.sort((a, b) => (b.published || '').localeCompare(a.published || ''));
     let feed = importantOnly ? items.filter((i) => i.important) : items;
     if (unreadOnly) feed = feed.filter((i) => isNewVideo(i, i));
+    const videoQuery = (document.getElementById('videoSearch').value || '').trim().toLowerCase();
+    if (videoQuery) {
+        feed = feed.filter((i) => (i.title || '').toLowerCase().includes(videoQuery)
+            || (i.channelName || '').toLowerCase().includes(videoQuery));
+    }
     const shown = feed.slice(0, feedLimit);
     list.textContent = '';
     empty.style.display = shown.length ? 'none' : 'block';
@@ -1843,6 +1849,10 @@ async function renderVideoList() {
 }
 
 document.getElementById('channelSearch').addEventListener('input', () => {
+    renderHome();
+});
+
+document.getElementById('videoSearch').addEventListener('input', () => {
     renderHome();
 });
 
