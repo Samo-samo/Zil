@@ -117,6 +117,7 @@
     "scopeVideosLive": "Videos + live",
     "scopeShortsLive": "Shorts + live",
     "checkUpdates": "Check for updates",
+    "repo": "GitHub repository",
     "updateAvailable": "New version available",
     "upToDate": "Up to date",
     "updateFailed": "Update check failed.",

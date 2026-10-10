@@ -540,6 +540,10 @@ async function refreshUpdateStatus() {
     el.textContent = '';
 }
 
+document.getElementById('repoBtn').addEventListener('click', () => {
+    chrome.tabs.create({ url: 'https://github.com/Samo-samo/Zil' });
+});
+
 document.getElementById('updateCheckBtn').addEventListener('click', async (event) => {
     const btn = event.currentTarget;
     btn.disabled = true;
@@ -564,8 +568,13 @@ document.getElementById('updateCheckBtn').addEventListener('click', async (event
             }
             showUpdateStatus(`${t('settings.upToDate', 'Up to date')} (v${current})`);
         } else {
-            showUpdateStatus(t('settings.updateFailed', 'Update check failed.'), null);
-            document.getElementById('updateStatus').classList.add('error-line');
+            // Surface the reason (no-response means the worker runs old code:
+            // reload the extension from chrome://extensions).
+            const reason = (result && result.error) ? ` (${result.error})` : '';
+            const el = document.getElementById('updateStatus');
+            el.textContent = `${t('settings.updateFailed', 'Update check failed.')}${reason}`;
+            el.classList.add('error-line');
+            el.hidden = false;
         }
     } catch {
         showUpdateStatus(t('settings.updateFailed', 'Update check failed.'), null);
