@@ -1868,7 +1868,8 @@ async function renderChannelList() {
     empty.style.display = visible.length ? 'none' : 'block';
     for (const ch of visible) {
         const card = document.createElement('div');
-        card.className = 'channel-card ch-card' + (ch.paused ? ' is-paused' : '');
+        const unhealthy = ch.lastOk === false && !!ch.lastError;
+        card.className = 'channel-card ch-card' + (ch.paused ? ' is-paused' : '') + (unhealthy ? ' is-unhealthy' : '');
         const isOpen = expandedChannels.has(ch.id);
 
         // --- Header: avatar + name + customize + expand arrow ---
@@ -1909,6 +1910,14 @@ async function renderChannelList() {
             name.appendChild(dot);
         }
         headText.appendChild(name);
+        if (unhealthy) {
+            const warn = document.createElement('span');
+            warn.className = 'health-dot';
+            warn.textContent = '!';
+            warn.title = `${t('home.healthError', 'Checks failing')}: ${ch.lastError}`;
+            name.appendChild(document.createTextNode(' '));
+            name.appendChild(warn);
+        }
         if (liveModeCache !== 'off' && ch.isLive && ch.liveVideoId) {
             const lm = document.createElement('span');
             lm.className = 'live-mini';

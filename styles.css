@@ -561,6 +561,25 @@ body.dark .channel-card.is-new {
     opacity: 0.6;
 }
 
+.channel-card.is-unhealthy {
+    opacity: 0.75;
+    border-style: dashed;
+}
+
+.health-dot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 800;
+    vertical-align: middle;
+}
+
 .pill-important {
     display: inline-flex;
     align-items: center;
