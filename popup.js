@@ -511,33 +511,51 @@ function showUpdateStatus(text, url) {
     el.hidden = false;
 }
 
+// Returns { tag, url } when a newer release is already known, else null.
+async function getPendingUpdate() {
+    let current = '';
+    try {
+        current = chrome.runtime.getManifest().version;
+    } catch {
+        return null;
+    }
+    const { lastNotifiedVersion = '', pendingUpdateUrl = '' } = await chrome.storage.local.get(['lastNotifiedVersion', 'pendingUpdateUrl']);
+    if (!lastNotifiedVersion) return null;
+    try {
+        if (compareVersions(lastNotifiedVersion, current) <= 0) return null;
+    } catch {
+        return null;
+    }
+    return { tag: lastNotifiedVersion, url: pendingUpdateUrl || `https://github.com/Samo-samo/Zil/releases/tag/${lastNotifiedVersion}` };
+}
+
+document.getElementById('updateDot').addEventListener('click', async () => {
+    const pending = await getPendingUpdate();
+    if (pending) chrome.tabs.create({ url: pending.url });
+});
+
 // Persistent update banner: if a newer release is already known, the About
 // group says so on every open — the OS bubble alone is easy to miss.
 async function refreshUpdateStatus() {
     const el = document.getElementById('updateStatus');
     if (!el) return;
-    let current = '';
-    try {
-        current = chrome.runtime.getManifest().version;
-    } catch {
-        current = '';
-    }
-    const { lastNotifiedVersion = '', pendingUpdateUrl = '' } = await chrome.storage.local.get(['lastNotifiedVersion', 'pendingUpdateUrl']);
-    if (lastNotifiedVersion && current) {
-        try {
-            if (compareVersions(lastNotifiedVersion, current) > 0) {
-                showUpdateStatus(
-                    `${t('settings.updateAvailable', 'New version available')}: ${lastNotifiedVersion}`,
-                    pendingUpdateUrl || `https://github.com/Samo-samo/Zil/releases/tag/${lastNotifiedVersion}`
-                );
-                return;
-            }
-        } catch {
-            // Fall through and hide.
-        }
+    const pending = await getPendingUpdate();
+    if (pending) {
+        showUpdateStatus(
+            `${t('settings.updateAvailable', 'New version available')}: ${pending.tag}`,
+            pending.url
+        );
+        return;
     }
     el.hidden = true;
     el.textContent = '';
+}
+
+// Homepage dot next to the title: same pending-update signal, no words.
+async function refreshUpdateDot() {
+    const dot = document.getElementById('updateDot');
+    if (!dot) return;
+    dot.hidden = !(await getPendingUpdate());
 }
 
 document.getElementById('repoBtn').addEventListener('click', () => {
@@ -1646,6 +1664,7 @@ async function renderHome() {
         await renderChannelList();
     }
     await renderLiveStrip();
+    await refreshUpdateDot();
     document.getElementById('channelSearchWrap').style.display = view === 'channels' ? 'block' : 'none';
 }
 

@@ -1184,6 +1184,30 @@ button.btn.candidate-add {
     text-align: center;
 }
 
+#updateStatus .linklike {
+    color: dodgerblue;
+    font-weight: 600;
+    padding: 0;
+    font-size: inherit;
+}
+
+#updateStatus .linklike:hover {
+    text-decoration: underline;
+}
+
+.update-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: dodgerblue;
+    flex-shrink: 0;
+    padding: 0;
+}
+
+.update-dot[hidden] {
+    display: none;
+}
+
 .btn-block {
     width: 100%;
 }
