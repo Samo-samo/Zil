@@ -781,8 +781,8 @@ async function addChannelById(channelId) {
             })),
             lastReadAt: newest && newest.published ? newest.published : new Date().toISOString(),
             unread: 0,
-            lastCheck: new Date().toISOString(),
-            lastOk: true,
+            lastCheck: null,
+            lastOk: null,
             lastError: null,
         });
         await chrome.storage.local.set({ channels });
@@ -1017,6 +1017,9 @@ async function buildDebugReport(channelId) {
         channel: {
             id: ch.id || channelId,
             name: ch.name || '',
+            addedAt: ch.addedAt || null,
+            everChecked: !!(ch.lastCheck && ch.addedAt && ch.lastCheck !== ch.addedAt),
+            recentCount: Array.isArray(ch.recent) ? ch.recent.length : 0,
             lastCheck: ch.lastCheck || null,
             lastOk: ch.lastOk !== false,
             lastError: ch.lastError || null,
@@ -1821,18 +1824,23 @@ async function renderChannelList() {
             const liveV = document.createElement('span');
             liveV.className = 'kv-val';
             const liveTime = ch.liveCheckedAt ? timeAgo(ch.liveCheckedAt) : '';
-            const liveStamp = ch.liveCheckedAt ? ch.liveCheckedAt : '';
+            let liveStamp = '';
+            try {
+                liveStamp = ch.liveCheckedAt ? new Date(ch.liveCheckedAt).toLocaleString() : '';
+            } catch {
+                liveStamp = ch.liveCheckedAt || '';
+            }
             if (ch.isLive && ch.liveVideoId) {
                 const pill = document.createElement('span');
                 pill.className = 'live-mini';
                 pill.textContent = t('home.live', 'LIVE');
                 liveV.appendChild(pill);
-                if (liveTime) {
-                    liveV.appendChild(document.createTextNode(` · ${liveTime}`));
+                if (liveStamp) {
+                    liveV.appendChild(document.createTextNode(` · ${liveStamp}`));
                     liveV.title = liveStamp;
                 }
             } else if (ch.liveCheckedAt) {
-                liveV.textContent = `${t('home.liveOff', 'Not live')} (${ch.liveVia || '?'})${liveTime ? ` · ${liveTime}` : ''}`;
+                liveV.textContent = `${t('home.liveOff', 'Not live')} (${ch.liveVia || '?'})${liveStamp ? ` · ${liveStamp}` : liveTime ? ` · ${liveTime}` : ''}`;
                 liveV.title = [liveStamp, ch.liveDebug ? `debug=${ch.liveDebug}` : '']
                     .filter(Boolean).join('\n');
             } else {
