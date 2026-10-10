@@ -1823,7 +1823,16 @@ async function renderChannelList() {
                 btn.disabled = true;
                 btn.textContent = t('home.checking', 'Checking…');
                 try {
-                    await chrome.runtime.sendMessage({ type: 'zil-check-live', channelId: ch.id });
+                    // The probe can outlast several 20s fetch timeouts — never
+                    // leave the button stuck: give up waiting after 30s. A late
+                    // result still lands via the storage listener below.
+                    const timeout = new Promise((_, reject) =>
+                        setTimeout(() => reject(new Error('probe-timeout')), 30000)
+                    );
+                    await Promise.race([
+                        chrome.runtime.sendMessage({ type: 'zil-check-live', channelId: ch.id }),
+                        timeout,
+                    ]);
                 } catch {
                     // SW wakes on storage change anyway.
                 } finally {
@@ -1905,6 +1914,9 @@ async function renderChannelList() {
 chrome.storage.onChanged.addListener((changes, area) => {
     if (area === 'local' && (changes.channels || changes.settings)) {
         renderHome();
+        // Late probe results (or any background write) refresh the open modal
+        // too, so detail rows never go stale while the modal is open.
+        refreshOpenModal();
     }
 });
 
