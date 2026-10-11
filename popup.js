@@ -1,5 +1,5 @@
 import { lang, getLang } from './modules/localizator.js';
-import { resolveChannelId, resolveChannelCandidates, fetchChannelFeed, normalizeChannels, isShorts, fetchChannelAvatar, scopeOf, scopePool, scopeIncludes, scopeFromBoxes, CH_SCOPE_ORDER, classifyForChannel, matchRuleDetail, compileRulePattern, compareVersions, isNewVideo } from './modules/parser.js';
+import { resolveChannelId, resolveChannelCandidates, fetchChannelFeed, normalizeChannels, isShorts, fetchChannelAvatar, scopeOf, scopePool, scopeIncludes, scopeFromBoxes, CH_SCOPE_ORDER, classifyForChannel, matchRuleDetail, compileRulePattern, compareVersions, isNewVideo, toggleRead, badgeCountForChannel } from './modules/parser.js';
 
 const DEFAULT_SETTINGS = { checkIntervalMin: 15, notifyMode: 'all', skipShorts: false, quiet: { enabled: false, start: 23, end: 7 }, liveMode: 'auto', liveIntervalMin: 30, paused: false };
 const REFRESH_TIMEOUT_MS = 25000;
@@ -695,8 +695,10 @@ function isChannelIdLike(id) {
 }
 
 async function syncBadge() {
-    const channels = await getChannels();
-    const total = channels.reduce((n, c) => n + (c.unread || 0), 0);
+    const { channels = [], settings = {} } = await chrome.storage.local.get(['channels', 'settings']);
+    const rules = Array.isArray(settings.rules) ? settings.rules : [];
+    const total = normalizeChannels(channels)
+        .reduce((n, c) => n + badgeCountForChannel(c, { notifyMode: settings.notifyMode, rules }), 0);
     await chrome.action.setBadgeText({ text: total > 0 ? String(total) : '' });
 }
 
@@ -1048,13 +1050,7 @@ async function openTabNextToCurrent(url, active) {
 
 async function markSingleRead(channelId, videoId) {
     const channels = await getChannels();
-    const next = channels.map((c) => {
-        if (c.id !== channelId) return c;
-        const readIds = Array.isArray(c.readIds) ? [...c.readIds] : [];
-        if (!videoId || readIds.includes(videoId)) return c;
-        readIds.unshift(videoId);
-        return { ...c, readIds: readIds.slice(0, 100), unread: Math.max(0, (c.unread || 0) - 1) };
-    });
+    const next = channels.map((c) => (c.id === channelId ? toggleRead(c, videoId) : c));
     await chrome.storage.local.set({ channels: next });
     await syncBadge();
     await renderHome();
@@ -1554,11 +1550,13 @@ function armConfirmButton(btn, action) {
 }
 
 async function markAllRead() {
-    const channels = await getChannels();
-    if (!channels.some((c) => c.unread > 0)) return;
+    const { channels = [], settings = {} } = await chrome.storage.local.get(['channels', 'settings']);
+    const rules = Array.isArray(settings.rules) ? settings.rules : [];
+    const list = normalizeChannels(channels);
+    if (!list.some((c) => badgeCountForChannel(c, { notifyMode: settings.notifyMode, rules }) > 0)) return;
     const now = new Date().toISOString();
     await chrome.storage.local.set({
-        channels: channels.map((c) => ({
+        channels: list.map((c) => ({
             ...c,
             unread: 0,
             lastReadAt: now,
@@ -1688,6 +1686,7 @@ async function renderVideoList() {
     const { settings = {} } = await chrome.storage.local.get(['settings']);
     const items = [];
     for (const ch of channels) {
+        if (ch.paused) continue;
         const recent = Array.isArray(ch.recent) ? ch.recent : [];
         const pool = scopePool(scopeOf(ch), recent, settings.skipShorts === true);
         for (const v of pool) {
@@ -1744,11 +1743,14 @@ async function renderVideoList() {
         });
         card.appendChild(more);
 
-        // Marks read without opening anything (covers failed/blocked tab opens).
+        // Toggles read state without opening anything (covers failed/blocked
+        // tab opens). Shows "mark unread" when the video is already read.
         const read = document.createElement('button');
         read.className = 'icon-btn small card-read-btn';
-        read.title = t('home.markRead', 'Mark as read');
+        const alreadyRead = (item.readIds || []).includes(item.videoId);
+        read.title = alreadyRead ? t('home.markUnread', 'Mark as unread') : t('home.markRead', 'Mark as read');
         read.textContent = '✓';
+        read.classList.toggle('is-active', alreadyRead);
         read.addEventListener('click', (e) => {
             e.stopPropagation();
             markSingleRead(item.channelId, item.videoId);
@@ -1862,6 +1864,9 @@ async function renderChannelList() {
     const list = document.getElementById('channelList');
     const empty = document.getElementById('homeEmpty');
     const channels = await getChannels();
+    const { settings: listSettings = {} } = await chrome.storage.local.get(['settings']);
+    const listRules = Array.isArray(listSettings.rules) ? listSettings.rules : [];
+    const channelBadge = (ch) => badgeCountForChannel(ch, { notifyMode: listSettings.notifyMode, rules: listRules });
     const query = (document.getElementById('channelSearch').value || '').trim().toLowerCase();
     const visible = query
         ? channels.filter((c) => (c.name || '').toLowerCase().includes(query) || (c.id || '').toLowerCase().includes(query))
@@ -1903,10 +1908,11 @@ async function renderChannelList() {
         const name = document.createElement('strong');
         name.className = 'channel-name';
         name.textContent = ch.name || ch.id;
-        if (ch.unread > 0) {
+        const chUnread = channelBadge(ch);
+        if (chUnread > 0) {
             const dot = document.createElement('span');
             dot.className = 'unread-dot';
-            dot.textContent = String(ch.unread);
+            dot.textContent = String(chUnread);
             dot.title = t('home.unread', 'New videos');
             name.appendChild(document.createTextNode(' '));
             name.appendChild(dot);

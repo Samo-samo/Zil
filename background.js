@@ -1,4 +1,4 @@
-import { fetchChannelFeed, normalizeChannels, scopeOf, scopePool, scopeAllowsLive, isQuietNow, fetchLiveVideoId, verifyLiveVideo, fetchChannelAvatar, classifyForChannel, compareVersions, isNewVideo, decideVideoUpdate, countActualUnread } from './modules/parser.js';
+import { fetchChannelFeed, normalizeChannels, scopeOf, scopePool, scopeAllowsLive, isQuietNow, fetchLiveVideoId, verifyLiveVideo, fetchChannelAvatar, classifyForChannel, compareVersions, isNewVideo, decideVideoUpdate, countActualUnread, toggleRead, badgeCountForChannel, effectiveMode } from './modules/parser.js';
 
 const ALARM_NAME = 'checkYouTubeRSS';
 const VERSION_ALARM_NAME = 'zilVersionCheck';
@@ -235,13 +235,13 @@ async function maybeAutoBackup(channels) {
 
 async function updateBadge() {
   try {
-    const { notifyMode } = await getSettings();
+    const { notifyMode, rules = [] } = await getSettings();
     if (notifyMode === 'off') {
       await chrome.action.setBadgeText({ text: '' });
       return;
     }
     const channels = await getChannels();
-    const total = channels.filter((c) => !c.paused).reduce((n, c) => n + (c.unread || 0), 0);
+    const total = channels.reduce((n, c) => n + badgeCountForChannel(c, { notifyMode, rules }), 0);
     await chrome.action.setBadgeBackgroundColor({ color: BADGE_COLOR });
     await chrome.action.setBadgeText({ text: total > 0 ? String(total) : '' });
   } catch (err) {
@@ -270,14 +270,7 @@ async function notifyLive(channel, liveId, important = false) {
   }
 }
 
-// Per-channel override (chNotify) wins over the global mode; 'default'/missing
-// means "follow global". Quiet hours downgrade any 'all' to 'badge'.
-function effectiveMode(ch, globalMode, quietActive = false) {
-  const m = ch.chNotify && ch.chNotify !== 'default' ? ch.chNotify : globalMode;
-  const base = ['all', 'badge', 'off'].includes(m) ? m : 'all';
-  if (quietActive && base === 'all') return 'badge';
-  return base;
-}
+// effectiveMode lives in parser.js (shared with badge derivation).
 
 async function notifyNewVideo(channel, video, important = false) {
   const base = {
@@ -356,7 +349,6 @@ async function applyLiveCheck(base, live, notifyMode, now, quietActive = false, 
       const quietForLive = quietActive && !(verdictLive === 'important' && importantBypassQuiet && notifyMode === 'all');
       const effLive = effectiveMode(base, notifyMode, quietForLive);
       if (effLive !== 'off') {
-        next.unread = (next.unread || base.unread || 0) + 1;
         counted = true;
       }
       if (effLive === 'all') {
@@ -531,7 +523,6 @@ async function runChecks() {
           const quietForThis = quietActive && !(verdict === 'important' && importantBypassQuiet && notifyMode === 'all');
           const eff = effectiveMode(ch, notifyMode, quietForThis);
           if (eff !== 'off') {
-            next.unread = (ch.unread || 0) + 1;
             newVideos += 1;
           }
           if (eff === 'all') {

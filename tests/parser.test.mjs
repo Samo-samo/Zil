@@ -28,6 +28,9 @@ import {
   isNewVideo,
   decideVideoUpdate,
   countActualUnread,
+  toggleRead,
+  badgeCountForChannel,
+  effectiveMode,
 } from '../modules/parser.js';
 
 const ID = 'UC1234567890123456789012';
@@ -247,6 +250,36 @@ describe('unread reconciliation', () => {
   it('shares isNewVideo logic with the popup', () => {
     assert.ok(isNewVideo(ch, { videoId: 'vx', published: '2026-10-06T00:00:00Z' }));
     assert.ok(!isNewVideo(ch, { videoId: 'v0', published: '2026-10-06T00:00:00Z' }));
+  });
+});
+
+describe('read toggle and badge', () => {
+  it('toggles read state both ways', () => {
+    const ch = { id: 'A', readIds: ['v1'] };
+    assert.deepEqual(toggleRead(ch, 'v2').readIds, ['v2', 'v1']);
+    assert.deepEqual(toggleRead(ch, 'v1').readIds, []);
+    assert.equal(toggleRead(ch, null), ch);
+  });
+
+  it('derives one badge number for popup and worker', () => {
+    const ch = {
+      lastReadAt: '2026-10-01T00:00:00Z',
+      readIds: [],
+      recent: [
+        { videoId: 'v2', published: '2026-10-05T00:00:00Z' },
+        { videoId: 'v1', published: '2026-09-01T00:00:00Z' },
+      ],
+    };
+    assert.equal(badgeCountForChannel(ch, {}), 1);
+    assert.equal(badgeCountForChannel({ ...ch, paused: true }, {}), 0);
+    assert.equal(badgeCountForChannel({ ...ch, chNotify: 'off' }, {}), 0);
+    assert.equal(badgeCountForChannel({ ...ch, isLive: true, liveVideoId: 'L1' }, {}), 2);
+  });
+
+  it('keeps the shared notify-mode helper sane', () => {
+    assert.equal(effectiveMode({}, 'all'), 'all');
+    assert.equal(effectiveMode({ chNotify: 'off' }, 'all'), 'off');
+    assert.equal(effectiveMode({}, 'all', true), 'badge');
   });
 });
 

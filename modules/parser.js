@@ -34,6 +34,42 @@ export function isShorts(video) {
   return !!video && typeof video.link === 'string' && video.link.includes('/shorts/');
 }
 
+// Read-state toggle for the card ✓ button: opening marks read, pressing
+// again on an already-read video marks it unread (badge follows on next
+// render/check since everything derives from readIds).
+export function toggleRead(ch, videoId) {
+  if (!ch || !videoId) return ch;
+  const readIds = Array.isArray(ch.readIds) ? [...ch.readIds] : [];
+  const at = readIds.indexOf(videoId);
+  if (at >= 0) readIds.splice(at, 1);
+  else readIds.unshift(videoId);
+  return { ...ch, readIds: readIds.slice(0, 100) };
+}
+
+// Badge count for one channel from a single source of truth: openable,
+// unblocked, new items plus a pending live — unless muted or paused.
+export function badgeCountForChannel(ch, opts = {}) {
+  if (!ch || ch.paused) return 0;
+  const mode = ch.chNotify && ch.chNotify !== 'default' ? ch.chNotify : opts.notifyMode;
+  const m = ['all', 'badge', 'off'].includes(mode) ? mode : 'all';
+  if (m === 'off') return 0;
+  const rules = Array.isArray(opts.rules) ? opts.rules : [];
+  const chRules = Array.isArray(ch.rules) ? ch.rules : [];
+  const liveBlocked = classifyForChannel(chRules, rules, '', ch.name || '') === 'block';
+  const readIds = Array.isArray(ch.readIds) ? ch.readIds : [];
+  const livePending = !!(ch.isLive && ch.liveVideoId && !readIds.includes(ch.liveVideoId) && !liveBlocked);
+  return countActualUnread({ ...ch, chNotify: m }, livePending);
+}
+
+// Per-channel override (chNotify) wins over the global mode; 'default'/missing
+// means "follow global". Quiet hours downgrade any 'all' to 'badge'.
+export function effectiveMode(ch, globalMode, quietActive = false) {
+  const m = ch.chNotify && ch.chNotify !== 'default' ? ch.chNotify : globalMode;
+  const base = ['all', 'badge', 'off'].includes(m) ? m : 'all';
+  if (quietActive && base === 'all') return 'badge';
+  return base;
+}
+
 // Per-channel content scope. 'default' follows the global Shorts filter;
 // legacy chShorts values are mapped so old settings keep working.
 export const CH_SCOPE_ORDER = ['default', 'all', 'videos', 'shorts', 'live', 'videos-shorts', 'videos-live', 'shorts-live'];
