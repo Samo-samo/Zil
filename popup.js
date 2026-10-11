@@ -1692,6 +1692,7 @@ async function renderVideoList() {
                 channelName: ch.name || ch.id,
                 lastReadAt: ch.lastReadAt || '',
                 readIds: Array.isArray(ch.readIds) ? ch.readIds : [],
+                unreadIds: Array.isArray(ch.unreadIds) ? ch.unreadIds : [],
                 unread: ch.unread || 0,
                 liveHere: ch.isLive && ch.liveVideoId === v.videoId,
             });
