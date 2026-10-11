@@ -1,5 +1,5 @@
 import { lang, getLang } from './modules/localizator.js';
-import { resolveChannelId, resolveChannelCandidates, fetchChannelFeed, normalizeChannels, isShorts, fetchChannelAvatar, scopeOf, scopePool, scopeIncludes, scopeFromBoxes, CH_SCOPE_ORDER, classifyForChannel, matchRuleDetail, compileRulePattern, compareVersions } from './modules/parser.js';
+import { resolveChannelId, resolveChannelCandidates, fetchChannelFeed, normalizeChannels, isShorts, fetchChannelAvatar, scopeOf, scopePool, scopeIncludes, scopeFromBoxes, CH_SCOPE_ORDER, classifyForChannel, matchRuleDetail, compileRulePattern, compareVersions, isNewVideo } from './modules/parser.js';
 
 const DEFAULT_SETTINGS = { checkIntervalMin: 15, notifyMode: 'all', skipShorts: false, quiet: { enabled: false, start: 23, end: 7 }, liveMode: 'auto', liveIntervalMin: 30, paused: false };
 const REFRESH_TIMEOUT_MS = 25000;
@@ -946,15 +946,8 @@ async function openVideo(channelId, videoId, published, url, active = true) {
     await renderHome();
 }
 
-// A video counts as new when never opened and newer than the channel's
-// read watermark (seeded at first check so history doesn't all light up).
-function isNewVideo(ch, v) {
-    const readIds = Array.isArray(ch.readIds) ? ch.readIds : [];
-    if (!v || !v.videoId || readIds.includes(v.videoId)) return false;
-    if (!v.published) return true;
-    if (!ch.lastReadAt) return true;
-    return v.published > ch.lastReadAt;
-}
+// isNewVideo lives in parser.js so the background reconciler shares the
+// exact logic with the popup (single source of truth for "new").
 
 // Middle-click autoscroll starts on mousedown — auxclick is too late to stop
 // it, so every middle-clickable element gets this first.

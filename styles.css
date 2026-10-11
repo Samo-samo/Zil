@@ -655,12 +655,17 @@ body.dark .channel-card.is-new {
     border: var(--border-color) 1px solid;
     border-radius: var(--radius-md);
     background: var(--bg-card);
-    transition: border-color 0.2s ease;
+    transition: border-color 0.2s ease, background-color 0.25s ease, transform 0.12s ease;
     cursor: pointer;
 }
 
 .channel-card:hover {
     border-color: var(--border-color-hover);
+}
+
+.channel-card:active {
+    background-color: var(--bg-btn-hover);
+    transform: scale(0.99);
 }
 
 .thumb {

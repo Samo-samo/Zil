@@ -25,6 +25,9 @@ import {
   classifyVideo,
   classifyForChannel,
   matchRuleDetail,
+  isNewVideo,
+  decideVideoUpdate,
+  countActualUnread,
 } from '../modules/parser.js';
 
 const ID = 'UC1234567890123456789012';
@@ -181,6 +184,69 @@ describe('live detection', () => {
     assert.equal(await verifyLiveVideo('V', mock('liveStreamability')), 'live');
     assert.equal(await verifyLiveVideo('V', mock('plain')), 'unknown');
     assert.equal(await verifyLiveVideo('V', mock('', 404)), 'unknown');
+  });
+});
+
+describe('video update decision', () => {
+  const V = (id) => ({ videoId: id, link: `https://www.youtube.com/watch?v=${id}` });
+  const S = (id) => ({ videoId: id, link: `https://www.youtube.com/shorts/${id}` });
+
+  it('baselines on first read', () => {
+    const d = decideVideoUpdate([S('s1'), V('v1')], [V('v1')], null);
+    assert.equal(d.action, 'baseline');
+    assert.equal(d.video.videoId, 's1');
+  });
+
+  it('stays silent when only filtered items sit above the baseline', () => {
+    // Yunus case: baseline is an older Shorts, newest is a newer Shorts,
+    // newest allowed video is stale below the baseline.
+    const feed = [S('s2'), S('s1'), V('v1')];
+    const pool = [V('v1')];
+    const d = decideVideoUpdate(feed, pool, 's1');
+    assert.equal(d.action, 'silent');
+    assert.equal(d.video.videoId, 's2');
+  });
+
+  it('notifies for the newest allowed video above the baseline', () => {
+    const feed = [S('s2'), V('v2'), V('v1')];
+    const pool = [V('v2'), V('v1')];
+    const d = decideVideoUpdate(feed, pool, 'v1');
+    assert.equal(d.action, 'notify');
+    assert.equal(d.video.videoId, 'v2');
+  });
+
+  it('handles empty feeds and rotated-out baselines', () => {
+    assert.equal(decideVideoUpdate([], [], 'x').action, 'none');
+    const d = decideVideoUpdate([V('v9')], [V('v9')], 'v-gone');
+    assert.equal(d.action, 'notify');
+    assert.equal(d.video.videoId, 'v9');
+  });
+});
+
+describe('unread reconciliation', () => {
+  const ch = {
+    lastReadAt: '2026-10-01T00:00:00Z',
+    readIds: ['v0'],
+    recent: [
+      { videoId: 'v2', published: '2026-10-05T00:00:00Z' },
+      { videoId: 'v1', published: '2026-10-02T00:00:00Z' },
+      { videoId: 'v0', published: '2026-09-01T00:00:00Z' },
+    ],
+  };
+  it('counts only openable new items', () => {
+    assert.equal(countActualUnread(ch, false), 2);
+    assert.equal(countActualUnread(ch, true), 3);
+  });
+
+  it('ignores blocked, read and muted items', () => {
+    const blocked = { ...ch, recent: [...ch.recent, { videoId: 'vb', published: '2026-10-06T00:00:00Z', blocked: true }] };
+    assert.equal(countActualUnread(blocked, false), 2);
+    assert.equal(countActualUnread({ ...ch, chNotify: 'off' }, true), 0);
+  });
+
+  it('shares isNewVideo logic with the popup', () => {
+    assert.ok(isNewVideo(ch, { videoId: 'vx', published: '2026-10-06T00:00:00Z' }));
+    assert.ok(!isNewVideo(ch, { videoId: 'v0', published: '2026-10-06T00:00:00Z' }));
   });
 });
 

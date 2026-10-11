@@ -1,4 +1,4 @@
-import { fetchChannelFeed, normalizeChannels, scopeOf, scopePool, scopeAllowsLive, isQuietNow, fetchLiveVideoId, verifyLiveVideo, fetchChannelAvatar, classifyForChannel, compareVersions } from './modules/parser.js';
+import { fetchChannelFeed, normalizeChannels, scopeOf, scopePool, scopeAllowsLive, isQuietNow, fetchLiveVideoId, verifyLiveVideo, fetchChannelAvatar, classifyForChannel, compareVersions, isNewVideo, decideVideoUpdate, countActualUnread } from './modules/parser.js';
 
 const ALARM_NAME = 'checkYouTubeRSS';
 const VERSION_ALARM_NAME = 'zilVersionCheck';
@@ -477,49 +477,55 @@ async function runChecks() {
       };
       if (feed.videos.length) {
         // Video history for the unified homepage feed (max 15 per channel).
-        // Each entry carries its rule verdict so the UI can style important ones.
+        // Each entry carries its rule verdicts so the UI can style important
+        // ones and the reconciler can ignore blocked ones.
         const feedName = feed.channelTitle || ch.name;
-        next.recent = feed.videos.slice(0, 15).map((v) => ({
-          videoId: v.videoId,
-          title: v.title,
-          published: v.published,
-          link: v.link,
-          thumb: v.thumb || '',
-          important: classifyForChannel(ch.rules, rules, v.title, feedName) === 'important',
-        }));
+        next.recent = feed.videos.slice(0, 15).map((v) => {
+          const verdict = classifyForChannel(ch.rules, rules, v.title, feedName);
+          return {
+            videoId: v.videoId,
+            title: v.title,
+            published: v.published,
+            link: v.link,
+            thumb: v.thumb || '',
+            important: verdict === 'important',
+            blocked: verdict === 'block',
+          };
+        });
         if (!ch.lastReadAt && feed.videos[0].published) {
           // Seed so pre-existing videos don't all light up as new.
           next.lastReadAt = feed.videos[0].published;
         }
       }
-      if (newest && !ch.lastVideoId) {
-        // First successful read: baseline on the ACTUAL newest (even a Short)
+      const decision = decideVideoUpdate(feed.videos, pool, ch.lastVideoId);
+      if (decision.action === 'baseline') {
+        // First successful read: adopt the ACTUAL newest (even a Short)
         // without notifying, so enabling the filter later stays quiet.
-        next.lastVideoId = newest.videoId;
+        next.lastVideoId = decision.video.videoId;
         const shown = latest || newest;
         next.lastVideoTitle = shown.title;
         next.lastPublished = shown.published;
         next.lastVideoUrl = shown.link;
         next.lastThumb = shown.thumb || ch.lastThumb || '';
-      } else if (newest && newest.videoId !== ch.lastVideoId && (!latest || latest.videoId === ch.lastVideoId)) {
-        // Only filtered-out items (e.g. hidden Shorts) are newer than the
-        // baseline: advance silently so they never re-trigger a notification
-        // for the already-known video below them. No unread, no badge.
-        next.lastVideoId = newest.videoId;
+      } else if (decision.action === 'silent') {
+        // Only filtered-out items sit above the baseline: adopt newest
+        // silently. No unread, no badge.
+        next.lastVideoId = decision.video.videoId;
         const shown = latest || newest;
         next.lastVideoTitle = shown.title;
         next.lastPublished = shown.published;
         next.lastVideoUrl = shown.link;
         next.lastThumb = shown.thumb || ch.lastThumb || '';
-      } else if (newest && newest.videoId !== ch.lastVideoId && latest && latest.videoId !== ch.lastVideoId) {
-        next.lastVideoId = latest.videoId;
-        next.lastVideoTitle = latest.title;
-        next.lastPublished = latest.published;
-        next.lastVideoUrl = latest.link;
-        next.lastThumb = latest.thumb || ch.lastThumb || '';
-        const verdict = classifyForChannel(ch.rules, rules, latest.title, next.name);
+      } else if (decision.action === 'notify') {
+        const video = decision.video;
+        next.lastVideoId = video.videoId;
+        next.lastVideoTitle = video.title;
+        next.lastPublished = video.published;
+        next.lastVideoUrl = video.link;
+        next.lastThumb = video.thumb || ch.lastThumb || '';
+        const verdict = classifyForChannel(ch.rules, rules, video.title, next.name);
         if (verdict === 'block') {
-          console.log(`Zil: blocked by rule: ${latest.title}`);
+          console.log(`Zil: blocked by rule: ${video.title}`);
         } else {
           // Important videos bypass quiet hours (never a global/per-channel 'off').
           const quietForThis = quietActive && !(verdict === 'important' && importantBypassQuiet && notifyMode === 'all');
@@ -529,7 +535,7 @@ async function runChecks() {
             newVideos += 1;
           }
           if (eff === 'all') {
-            await notifyNewVideo(next, latest, verdict === 'important');
+            await notifyNewVideo(next, video, verdict === 'important');
           }
         }
       } else if (latest) {
@@ -551,6 +557,15 @@ async function runChecks() {
       try {
         const { next: withLive, counted } = await applyLiveCheck(next, live, notifyMode, now, quietActive, false, rules, importantBypassQuiet);
         if (counted) newVideos += 1;
+        // Reconcile: the badge must only reflect openable items. Ended lives
+        // and rotated-out or blocked videos stop haunting the counter here.
+        const liveVerdict = withLive.isLive
+          ? classifyForChannel(withLive.rules, rules, '', withLive.name || '')
+          : 'notify';
+        const livePending = withLive.isLive && withLive.liveVideoId
+          && !(Array.isArray(withLive.readIds) && withLive.readIds.includes(withLive.liveVideoId))
+          && liveVerdict !== 'block';
+        withLive.unread = notifyMode === 'off' ? 0 : countActualUnread(withLive, livePending);
         updated.push(withLive);
       } catch (liveErr) {
         console.warn(`Zil: live check failed for ${ch.id}`, liveErr);

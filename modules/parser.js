@@ -376,6 +376,56 @@ export function matchRuleDetail(chRules, globalRules, title, channel) {
     || matchRules(globalRules, title, channel)
     || { action: 'notify', rule: null };
 }
+// A video counts as new when never opened and newer than the channel's
+// read watermark (seeded at first check so history doesn't all light up).
+export function isNewVideo(ch, v) {
+  const readIds = Array.isArray(ch.readIds) ? ch.readIds : [];
+  if (!v || !v.videoId || readIds.includes(v.videoId)) return false;
+  if (!v.published) return true;
+  if (!ch.lastReadAt) return true;
+  return v.published > ch.lastReadAt;
+}
+
+// Decides what a fresh feed means against the stored baseline, using feed
+// POSITION instead of newest/latest comparisons. Returns:
+//   baseline → first read ever, adopt newest silently
+//   silent   → only filtered-out items sit above the baseline: adopt newest,
+//              no notification (kills phantom notifies for stale entries)
+//   notify   → an allowed video sits above the baseline: notify for the
+//              newest such video
+//   none     → empty feed
+export function decideVideoUpdate(feedVideos, pool, lastVideoId) {
+  const videos = Array.isArray(feedVideos) ? feedVideos : [];
+  const newest = videos[0];
+  if (!newest) return { action: 'none', video: null };
+  if (!lastVideoId) return { action: 'baseline', video: newest };
+  const allowed = new Set((Array.isArray(pool) ? pool : []).map((v) => v && v.videoId));
+  const idx = videos.findIndex((v) => v && v.videoId === lastVideoId);
+  if (idx === -1) {
+    const latest = (Array.isArray(pool) ? pool : [])[0];
+    return latest ? { action: 'notify', video: latest } : { action: 'silent', video: newest };
+  }
+  const above = videos.slice(0, idx).filter((v) => v && allowed.has(v.videoId));
+  if (above.length) return { action: 'notify', video: above[0] };
+  return { action: 'silent', video: newest };
+}
+
+// Reconciles the stored unread counter with what is actually openable:
+// recent items that are new and not blocked, plus a pending live (unless the
+// channel is muted). Anything else (ended lives, rotated-out or blocked
+// videos) stops haunting the badge.
+export function countActualUnread(ch, livePending) {
+  const mode = ch && ch.chNotify && ch.chNotify !== 'default' ? ch.chNotify : null;
+  if (mode === 'off') return 0;
+  const recent = Array.isArray(ch.recent) ? ch.recent : [];
+  let n = 0;
+  for (const v of recent) {
+    if (v && !v.blocked && isNewVideo(ch, v)) n += 1;
+  }
+  if (livePending) n += 1;
+  return n;
+}
+
 // Channel avatar: first author thumbnail on the channel page. Returns '' when
 // the page is a consent/bot shell or the layout changed — callers show an
 // initial-letter placeholder instead.
