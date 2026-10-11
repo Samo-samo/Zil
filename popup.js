@@ -748,6 +748,8 @@ async function submitChannelInput(btn) {
         }
         await addChannelById(candidates[0].id);
         channelInput.value = '';
+        const skipBox = document.getElementById('addSkipShorts');
+        if (skipBox) skipBox.checked = false;
         switchPage('homepage');
         await renderHome();
     } catch (err) {
@@ -836,6 +838,8 @@ async function showCandidatePicker(candidates, raw) {
                 try {
                     await addChannelById(c.id);
                     document.getElementById('channelInput').value = '';
+                    const skipBox = document.getElementById('addSkipShorts');
+                    if (skipBox) skipBox.checked = false;
                     hideCandidatePicker();
                     switchPage('homepage');
                     await renderHome();
@@ -860,7 +864,9 @@ async function addChannelById(channelId) {
         }
         const feed = await fetchChannelFeed(channelId);
         const { settings = {} } = await chrome.storage.local.get(['settings']);
-        const pool = scopePool('default', feed.videos, settings.skipShorts === true);
+        const addSkipShorts = document.getElementById('addSkipShorts');
+        const hideShortsHere = (addSkipShorts && addSkipShorts.checked) || settings.skipShorts === true;
+        const pool = scopePool('default', feed.videos, hideShortsHere);
         const newest = feed.videos[0];
         const shown = pool[0] || newest;
         let avatar = '';
@@ -870,7 +876,7 @@ async function addChannelById(channelId) {
             avatar = '';
         }
         const nowIso = new Date().toISOString();
-        channels.push({
+        const entry = {
             id: channelId,
             name: feed.channelTitle || channelId,
             avatar,
@@ -893,7 +899,9 @@ async function addChannelById(channelId) {
             lastCheck: null,
             lastOk: null,
             lastError: null,
-        });
+        };
+        if (addSkipShorts && addSkipShorts.checked) entry.chScope = 'videos-live';
+        channels.push(entry);
         await chrome.storage.local.set({ channels });
 }
 
@@ -1706,10 +1714,11 @@ async function renderVideoList() {
     list.textContent = '';
     empty.style.display = shown.length ? 'none' : 'block';
     const impCount = items.filter((i) => i.important && isNewVideo(i, i)).length;
+    const unreadCount = items.filter((i) => isNewVideo(i, i)).length;
     if (impCount > 0) {
         const counter = document.createElement('div');
         counter.className = 'muted';
-        counter.textContent = `${impCount} ${t('home.important', 'Important')}`;
+        counter.textContent = `${impCount} ${t('home.important', 'Important')} · ${unreadCount} ${t('home.unreadItems', 'unread')}`;
         list.appendChild(counter);
     }
     for (const item of shown) {
