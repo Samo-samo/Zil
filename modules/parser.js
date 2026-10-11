@@ -34,16 +34,36 @@ export function isShorts(video) {
   return !!video && typeof video.link === 'string' && video.link.includes('/shorts/');
 }
 
-// Read-state toggle for the card ✓ button: opening marks read, pressing
-// again on an already-read video marks it unread (badge follows on next
-// render/check since everything derives from readIds).
-export function toggleRead(ch, videoId) {
+// Read-state toggle for the card button. Takes the video's CURRENT newness
+// (callers know it via isNewVideo) because the watermark alone can't flip:
+// a watermark-read video can only become unread through the explicit list.
+export function toggleRead(ch, videoId, currentlyNew) {
   if (!ch || !videoId) return ch;
   const readIds = Array.isArray(ch.readIds) ? [...ch.readIds] : [];
-  const at = readIds.indexOf(videoId);
-  if (at >= 0) readIds.splice(at, 1);
-  else readIds.unshift(videoId);
-  return { ...ch, readIds: readIds.slice(0, 100) };
+  const unreadIds = Array.isArray(ch.unreadIds) ? [...ch.unreadIds] : [];
+  const drop = (arr) => {
+    const at = arr.indexOf(videoId);
+    if (at >= 0) arr.splice(at, 1);
+  };
+  if (currentlyNew) {
+    if (!readIds.includes(videoId)) readIds.unshift(videoId);
+    drop(unreadIds);
+  } else {
+    drop(readIds);
+    if (!unreadIds.includes(videoId)) unreadIds.unshift(videoId);
+  }
+  return { ...ch, readIds: readIds.slice(0, 100), unreadIds: unreadIds.slice(0, 100) };
+}
+
+// Marks read unconditionally (notification clicks, video opens).
+export function markRead(ch, videoId) {
+  if (!ch || !videoId) return ch;
+  const readIds = Array.isArray(ch.readIds) ? [...ch.readIds] : [];
+  const unreadIds = Array.isArray(ch.unreadIds) ? [...ch.unreadIds] : [];
+  if (!readIds.includes(videoId)) readIds.unshift(videoId);
+  const at = unreadIds.indexOf(videoId);
+  if (at >= 0) unreadIds.splice(at, 1);
+  return { ...ch, readIds: readIds.slice(0, 100), unreadIds: unreadIds.slice(0, 100) };
 }
 
 // Badge count for one channel from a single source of truth: openable,
@@ -414,9 +434,13 @@ export function matchRuleDetail(chRules, globalRules, title, channel) {
 }
 // A video counts as new when never opened and newer than the channel's
 // read watermark (seeded at first check so history doesn't all light up).
+// Explicit per-video overrides win over the watermark both ways.
 export function isNewVideo(ch, v) {
   const readIds = Array.isArray(ch.readIds) ? ch.readIds : [];
-  if (!v || !v.videoId || readIds.includes(v.videoId)) return false;
+  const unreadIds = Array.isArray(ch.unreadIds) ? ch.unreadIds : [];
+  if (!v || !v.videoId) return false;
+  if (readIds.includes(v.videoId)) return false;
+  if (unreadIds.includes(v.videoId)) return true;
   if (!v.published) return true;
   if (!ch.lastReadAt) return true;
   return v.published > ch.lastReadAt;

@@ -1,4 +1,4 @@
-import { fetchChannelFeed, normalizeChannels, scopeOf, scopePool, scopeAllowsLive, isQuietNow, fetchLiveVideoId, verifyLiveVideo, fetchChannelAvatar, classifyForChannel, compareVersions, isNewVideo, decideVideoUpdate, countActualUnread, toggleRead, badgeCountForChannel, effectiveMode } from './modules/parser.js';
+import { fetchChannelFeed, normalizeChannels, scopeOf, scopePool, scopeAllowsLive, isQuietNow, fetchLiveVideoId, verifyLiveVideo, fetchChannelAvatar, classifyForChannel, compareVersions, isNewVideo, decideVideoUpdate, countActualUnread, toggleRead, markRead, badgeCountForChannel, effectiveMode } from './modules/parser.js';
 
 const ALARM_NAME = 'checkYouTubeRSS';
 const VERSION_ALARM_NAME = 'zilVersionCheck';
@@ -130,11 +130,10 @@ async function markVideoRead(videoId) {
     const owns = c.liveVideoId === videoId || c.lastVideoId === videoId
       || (Array.isArray(c.recent) && c.recent.some((v) => v.videoId === videoId));
     if (!owns) return c;
-    const readIds = Array.isArray(c.readIds) ? [...c.readIds] : [];
+    const readIds = Array.isArray(c.readIds) ? c.readIds : [];
     if (readIds.includes(videoId)) return c;
-    readIds.unshift(videoId);
     changed = true;
-    return { ...c, readIds: readIds.slice(0, 100), unread: Math.max(0, (c.unread || 0) - 1) };
+    return markRead(c, videoId);
   });
   if (!changed) return;
   await chrome.storage.local.set({ channels: next });

@@ -1,5 +1,5 @@
 import { lang, getLang } from './modules/localizator.js';
-import { resolveChannelId, resolveChannelCandidates, fetchChannelFeed, normalizeChannels, isShorts, fetchChannelAvatar, scopeOf, scopePool, scopeIncludes, scopeFromBoxes, CH_SCOPE_ORDER, classifyForChannel, matchRuleDetail, compileRulePattern, compareVersions, isNewVideo, toggleRead, badgeCountForChannel } from './modules/parser.js';
+import { resolveChannelId, resolveChannelCandidates, fetchChannelFeed, normalizeChannels, isShorts, fetchChannelAvatar, scopeOf, scopePool, scopeIncludes, scopeFromBoxes, CH_SCOPE_ORDER, classifyForChannel, matchRuleDetail, compileRulePattern, compareVersions, isNewVideo, toggleRead, markRead, badgeCountForChannel } from './modules/parser.js';
 
 const DEFAULT_SETTINGS = { checkIntervalMin: 15, notifyMode: 'all', skipShorts: false, quiet: { enabled: false, start: 23, end: 7 }, liveMode: 'auto', liveIntervalMin: 30, paused: false };
 const REFRESH_TIMEOUT_MS = 25000;
@@ -941,16 +941,7 @@ async function openVideo(channelId, videoId, published, url, active = true) {
     // Per-video read state: only the opened video is marked, the rest of the
     // channel stays unread.
     const channels = await getChannels();
-    const next = channels.map((c) => {
-        if (c.id !== channelId) return c;
-        const readIds = Array.isArray(c.readIds) ? [...c.readIds] : [];
-        let unread = c.unread || 0;
-        if (videoId && !readIds.includes(videoId)) {
-            readIds.unshift(videoId);
-            unread = Math.max(0, unread - 1);
-        }
-        return { ...c, readIds: readIds.slice(0, 100), unread };
-    });
+    const next = channels.map((c) => (c.id === channelId ? markRead(c, videoId) : c));
     await chrome.storage.local.set({ channels: next });
     await syncBadge();
     await renderHome();
@@ -1050,7 +1041,11 @@ async function openTabNextToCurrent(url, active) {
 
 async function markSingleRead(channelId, videoId) {
     const channels = await getChannels();
-    const next = channels.map((c) => (c.id === channelId ? toggleRead(c, videoId) : c));
+    const next = channels.map((c) => {
+        if (c.id !== channelId) return c;
+        const v = (Array.isArray(c.recent) ? c.recent : []).find((x) => x && x.videoId === videoId) || { videoId };
+        return toggleRead(c, videoId, isNewVideo(c, v));
+    });
     await chrome.storage.local.set({ channels: next });
     await syncBadge();
     await renderHome();
@@ -1560,6 +1555,7 @@ async function markAllRead() {
             ...c,
             unread: 0,
             lastReadAt: now,
+            unreadIds: [],
             readIds: [...new Set([
                 ...((Array.isArray(c.recent) ? c.recent : []).map((v) => v.videoId)),
                 ...(Array.isArray(c.readIds) ? c.readIds : []),
@@ -1747,10 +1743,9 @@ async function renderVideoList() {
         // tab opens). Shows "mark unread" when the video is already read.
         const read = document.createElement('button');
         read.className = 'icon-btn small card-read-btn';
-        const alreadyRead = (item.readIds || []).includes(item.videoId);
-        read.title = alreadyRead ? t('home.markUnread', 'Mark as unread') : t('home.markRead', 'Mark as read');
-        read.textContent = '✓';
-        read.classList.toggle('is-active', alreadyRead);
+        const readIsNew = isNewVideo(item, item);
+        read.title = readIsNew ? t('home.markRead', 'Mark as read') : t('home.markUnread', 'Mark as unread');
+        read.textContent = readIsNew ? '✓' : '↩';
         read.addEventListener('click', (e) => {
             e.stopPropagation();
             markSingleRead(item.channelId, item.videoId);

@@ -29,6 +29,7 @@ import {
   decideVideoUpdate,
   countActualUnread,
   toggleRead,
+  markRead,
   badgeCountForChannel,
   effectiveMode,
 } from '../modules/parser.js';
@@ -251,13 +252,35 @@ describe('unread reconciliation', () => {
     assert.ok(isNewVideo(ch, { videoId: 'vx', published: '2026-10-06T00:00:00Z' }));
     assert.ok(!isNewVideo(ch, { videoId: 'v0', published: '2026-10-06T00:00:00Z' }));
   });
+
+  it('lets explicit unread marks beat the watermark', () => {
+    // Auto-added old video: watermark-read, but user forces it unread.
+    const old = { lastReadAt: '2026-10-10T00:00:00Z', readIds: [], unreadIds: [] };
+    const v = { videoId: 'vx', published: '2026-10-01T00:00:00Z' };
+    assert.ok(!isNewVideo(old, v));
+    const forced = toggleRead(old, 'vx', false);
+    assert.ok(isNewVideo(forced, v));
+    assert.equal(countActualUnread({ ...forced, recent: [v] }, false), 1);
+  });
+
+  it('marks read unconditionally', () => {
+    const ch = { readIds: [], unreadIds: ['vx'] };
+    const marked = markRead(ch, 'vx');
+    assert.deepEqual(marked.readIds, ['vx']);
+    assert.deepEqual(marked.unreadIds, []);
+    assert.equal(markRead(ch, null), ch);
+  });
 });
 
 describe('read toggle and badge', () => {
   it('toggles read state both ways', () => {
-    const ch = { id: 'A', readIds: ['v1'] };
-    assert.deepEqual(toggleRead(ch, 'v2').readIds, ['v2', 'v1']);
-    assert.deepEqual(toggleRead(ch, 'v1').readIds, []);
+    const ch = { id: 'A', readIds: ['v1'], unreadIds: [] };
+    assert.deepEqual(toggleRead(ch, 'v2', true).readIds, ['v2', 'v1']);
+    assert.deepEqual(toggleRead(ch, 'v2', true).unreadIds, []);
+    const unmarked = toggleRead(ch, 'v1', false);
+    assert.deepEqual(unmarked.readIds, []);
+    assert.deepEqual(unmarked.unreadIds, ['v1']);
+    assert.deepEqual(toggleRead(unmarked, 'v1', true).unreadIds, []);
     assert.equal(toggleRead(ch, null), ch);
   });
 
