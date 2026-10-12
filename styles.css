@@ -655,7 +655,7 @@ body.dark .channel-card.is-new {
     border: var(--border-color) 1px solid;
     border-radius: var(--radius-md);
     background: var(--bg-card);
-    transition: border-color 0.2s ease, background-color 0.25s ease, transform 0.12s ease;
+    transition: border-color 0.2s ease, background-color 0.35s ease, transform 0.12s ease;
     cursor: pointer;
 }
 
