@@ -698,7 +698,7 @@ async function syncBadge() {
     const { channels = [], settings = {} } = await chrome.storage.local.get(['channels', 'settings']);
     const rules = Array.isArray(settings.rules) ? settings.rules : [];
     const total = normalizeChannels(channels)
-        .reduce((n, c) => n + badgeCountForChannel(c, { notifyMode: settings.notifyMode, rules }), 0);
+        .reduce((n, c) => n + badgeCountForChannel(c, { notifyMode: settings.notifyMode, rules, skipShorts: settings.skipShorts === true }), 0);
     await chrome.action.setBadgeText({ text: total > 0 ? String(total) : '' });
 }
 
@@ -888,14 +888,18 @@ async function addChannelById(channelId) {
             lastPublished: shown ? shown.published : '',
             lastVideoUrl: shown ? shown.link : '',
             lastThumb: shown && shown.thumb ? shown.thumb : '',
-            recent: feed.videos.slice(0, 15).map((v) => ({
-                videoId: v.videoId,
-                title: v.title,
-                published: v.published,
-                link: v.link,
-                thumb: v.thumb || '',
-                important: classifyForChannel([], Array.isArray(settings.rules) ? settings.rules : [], v.title, feed.channelTitle || channelId) === 'important',
-            })),
+            recent: feed.videos.slice(0, 15).map((v) => {
+                const verdict = classifyForChannel([], Array.isArray(settings.rules) ? settings.rules : [], v.title, feed.channelTitle || channelId);
+                return {
+                    videoId: v.videoId,
+                    title: v.title,
+                    published: v.published,
+                    link: v.link,
+                    thumb: v.thumb || '',
+                    important: verdict === 'important',
+                    blocked: verdict === 'block',
+                };
+            }),
             lastReadAt: newest && newest.published ? newest.published : new Date().toISOString(),
             unread: 0,
             lastCheck: null,
@@ -1041,14 +1045,49 @@ async function openTabNextToCurrent(url, active) {
 
 async function markSingleRead(channelId, videoId) {
     const channels = await getChannels();
-    const next = channels.map((c) => {
-        if (c.id !== channelId) return c;
-        const v = (Array.isArray(c.recent) ? c.recent : []).find((x) => x && x.videoId === videoId) || { videoId };
-        return toggleRead(c, videoId, isNewVideo(c, v));
-    });
+    const ch = channels.find((c) => c.id === channelId);
+    const v = (ch && (Array.isArray(ch.recent) ? ch.recent : []).find((x) => x && x.videoId === videoId)) || { videoId };
+    const wasNew = ch ? isNewVideo(ch, v) : false;
+    const next = channels.map((c) => (c.id === channelId ? toggleRead(c, videoId, wasNew) : c));
     await chrome.storage.local.set({ channels: next });
     await syncBadge();
-    await renderHome();
+    // In-place flip so the background transition animates instead of the
+    // whole list rebuilding (a rebuild snaps with no animation).
+    const card = document.querySelector(`#videoList .channel-card[data-video-id="${CSS.escape(videoId)}"]`);
+    if (!card) {
+        await renderHome();
+        return;
+    }
+    card.classList.toggle('is-new', !wasNew);
+    const btn = card.querySelector('.card-read-btn');
+    if (btn) {
+        btn.title = !wasNew ? t('home.markRead', 'Mark as read') : t('home.markUnread', 'Mark as unread');
+        btn.textContent = !wasNew ? '✓' : '↩';
+    }
+    refreshFeedCounter();
+    if (unreadOnly && wasNew) {
+        card.classList.add('leaving');
+        setTimeout(() => card.remove(), 220);
+    }
+}
+
+function refreshFeedCounter() {
+    const list = document.getElementById('videoList');
+    const counter = document.getElementById('feedCounter');
+    if (!list || !counter) return;
+    const cards = list.querySelectorAll('.channel-card');
+    let imp = 0;
+    let un = 0;
+    cards.forEach((c) => {
+        if (!c.classList.contains('is-new')) return;
+        un += 1;
+        if (c.classList.contains('is-important')) imp += 1;
+    });
+    if (imp > 0) {
+        counter.textContent = `${imp} ${t('home.important', 'Important')} · ${un} ${t('home.unreadItems', 'unread')}`;
+    } else {
+        counter.remove();
+    }
 }
 
 // Relative time without locale files: Intl handles the language.
@@ -1548,7 +1587,7 @@ async function markAllRead() {
     const { channels = [], settings = {} } = await chrome.storage.local.get(['channels', 'settings']);
     const rules = Array.isArray(settings.rules) ? settings.rules : [];
     const list = normalizeChannels(channels);
-    if (!list.some((c) => badgeCountForChannel(c, { notifyMode: settings.notifyMode, rules }) > 0)) return;
+    if (!list.some((c) => badgeCountForChannel(c, { notifyMode: settings.notifyMode, rules, skipShorts: settings.skipShorts === true }) > 0)) return;
     const now = new Date().toISOString();
     await chrome.storage.local.set({
         channels: list.map((c) => ({
@@ -1686,6 +1725,7 @@ async function renderVideoList() {
         const recent = Array.isArray(ch.recent) ? ch.recent : [];
         const pool = scopePool(scopeOf(ch), recent, settings.skipShorts === true);
         for (const v of pool) {
+            if (v && v.blocked) continue;
             items.push({
                 ...v,
                 channelId: ch.id,
@@ -1713,6 +1753,7 @@ async function renderVideoList() {
     const unreadCount = items.filter((i) => isNewVideo(i, i)).length;
     if (impCount > 0) {
         const counter = document.createElement('div');
+        counter.id = 'feedCounter';
         counter.className = 'muted';
         counter.textContent = `${impCount} ${t('home.important', 'Important')} · ${unreadCount} ${t('home.unreadItems', 'unread')}`;
         list.appendChild(counter);
@@ -1720,6 +1761,7 @@ async function renderVideoList() {
     for (const item of shown) {
         const card = document.createElement('div');
         card.className = 'channel-card' + (isNewVideo(item, item) ? ' is-new' : '') + (item.important ? ' is-important' : '');
+        card.dataset.videoId = item.videoId;
         card.title = t('home.openVideo', 'Open video');
         card.addEventListener('click', () => openVideo(item.channelId, item.videoId, item.published, item.link));
         card.addEventListener('auxclick', (e) => {
@@ -1862,7 +1904,7 @@ async function renderChannelList() {
     const channels = await getChannels();
     const { settings: listSettings = {} } = await chrome.storage.local.get(['settings']);
     const listRules = Array.isArray(listSettings.rules) ? listSettings.rules : [];
-    const channelBadge = (ch) => badgeCountForChannel(ch, { notifyMode: listSettings.notifyMode, rules: listRules });
+    const channelBadge = (ch) => badgeCountForChannel(ch, { notifyMode: listSettings.notifyMode, rules: listRules, skipShorts: listSettings.skipShorts === true });
     const query = (document.getElementById('channelSearch').value || '').trim().toLowerCase();
     const visible = query
         ? channels.filter((c) => (c.name || '').toLowerCase().includes(query) || (c.id || '').toLowerCase().includes(query))

@@ -299,6 +299,22 @@ describe('read toggle and badge', () => {
     assert.equal(badgeCountForChannel({ ...ch, isLive: true, liveVideoId: 'L1' }, {}), 2);
   });
 
+  it('excludes scope-hidden and blocked items from the badge', () => {
+    const ch = {
+      lastReadAt: '2026-10-01T00:00:00Z',
+      readIds: [],
+      recent: [
+        { videoId: 's1', published: '2026-10-05T00:00:00Z', link: 'https://www.youtube.com/shorts/s1' },
+        { videoId: 'v1', published: '2026-10-02T00:00:00Z', link: 'https://www.youtube.com/watch?v=v1' },
+      ],
+    };
+    assert.equal(badgeCountForChannel(ch, {}), 2);
+    assert.equal(badgeCountForChannel({ ...ch, chScope: 'videos' }, {}), 1);
+    assert.equal(badgeCountForChannel({ ...ch, chScope: 'live' }, {}), 0);
+    const blocked = { ...ch, recent: ch.recent.map((v) => ({ ...v, blocked: v.videoId === 's1' })) };
+    assert.equal(badgeCountForChannel(blocked, {}), 1);
+  });
+
   it('keeps the shared notify-mode helper sane', () => {
     assert.equal(effectiveMode({}, 'all'), 'all');
     assert.equal(effectiveMode({ chNotify: 'off' }, 'all'), 'off');

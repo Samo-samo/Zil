@@ -668,6 +668,11 @@ body.dark .channel-card.is-new {
     transform: scale(0.99);
 }
 
+.channel-card.leaving {
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
 .thumb {
     flex: 0 0 96px;
     width: 96px;

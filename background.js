@@ -234,13 +234,13 @@ async function maybeAutoBackup(channels) {
 
 async function updateBadge() {
   try {
-    const { notifyMode, rules = [] } = await getSettings();
+    const { notifyMode, rules = [], skipShorts = false } = await getSettings();
     if (notifyMode === 'off') {
       await chrome.action.setBadgeText({ text: '' });
       return;
     }
     const channels = await getChannels();
-    const total = channels.reduce((n, c) => n + badgeCountForChannel(c, { notifyMode, rules }), 0);
+    const total = channels.reduce((n, c) => n + badgeCountForChannel(c, { notifyMode, rules, skipShorts }), 0);
     await chrome.action.setBadgeBackgroundColor({ color: BADGE_COLOR });
     await chrome.action.setBadgeText({ text: total > 0 ? String(total) : '' });
   } catch (err) {

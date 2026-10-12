@@ -78,7 +78,7 @@ export function badgeCountForChannel(ch, opts = {}) {
   const liveBlocked = classifyForChannel(chRules, rules, '', ch.name || '') === 'block';
   const readIds = Array.isArray(ch.readIds) ? ch.readIds : [];
   const livePending = !!(ch.isLive && ch.liveVideoId && !readIds.includes(ch.liveVideoId) && !liveBlocked);
-  return countActualUnread({ ...ch, chNotify: m }, livePending);
+  return countActualUnread({ ...ch, chNotify: m }, livePending, { skipShorts: opts.skipShorts === true });
 }
 
 // Per-channel override (chNotify) wins over the global mode; 'default'/missing
@@ -473,13 +473,15 @@ export function decideVideoUpdate(feedVideos, pool, lastVideoId) {
 // Reconciles the stored unread counter with what is actually openable:
 // recent items that are new and not blocked, plus a pending live (unless the
 // channel is muted). Anything else (ended lives, rotated-out or blocked
-// videos) stops haunting the badge.
-export function countActualUnread(ch, livePending) {
+// videos) stops haunting the badge. Scope-aware: items the feed itself hides
+// (e.g. filtered-out Shorts) are not counted either.
+export function countActualUnread(ch, livePending, opts = {}) {
   const mode = ch && ch.chNotify && ch.chNotify !== 'default' ? ch.chNotify : null;
   if (mode === 'off') return 0;
   const recent = Array.isArray(ch.recent) ? ch.recent : [];
+  const visible = scopePool(scopeOf(ch), recent, opts.skipShorts === true);
   let n = 0;
-  for (const v of recent) {
+  for (const v of visible) {
     if (v && !v.blocked && isNewVideo(ch, v)) n += 1;
   }
   if (livePending) n += 1;
